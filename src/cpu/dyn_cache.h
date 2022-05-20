@@ -16,6 +16,10 @@
  *  51 Franklin Street, Fifth Floor, Boston, MA 02110-1301, USA.
  */
 
+#if defined(__3DS__)
+#include <3ds.h>
+#include <malloc.h>
+#endif
 
 class CodePageHandlerDynRec;	// forward
 
@@ -614,7 +618,14 @@ static void cache_init(bool enable) {
 		cache_initialized = true;
 		if (cache_blocks == NULL) {
 			// allocate the cache blocks memory
+
+#if defined(__3DS__)
+			_InitializeSvcHack();
+			cache_blocks = (CacheBlockDynRec*)memalign(4096, CACHE_BLOCKS*sizeof(CacheBlockDynRec));
+			_SetMemoryPermission(cache_blocks, CACHE_BLOCKS*sizeof(CacheBlockDynRec), 7);
+#else
 			cache_blocks=(CacheBlockDynRec*)malloc(CACHE_BLOCKS*sizeof(CacheBlockDynRec));
+#endif
 			if(!cache_blocks) E_Exit("Allocating cache_blocks has failed");
 			memset(cache_blocks,0,sizeof(CacheBlockDynRec)*CACHE_BLOCKS);
 			cache.block.free=&cache_blocks[0];
@@ -632,6 +643,10 @@ static void cache_init(bool enable) {
 				MEM_COMMIT,PAGE_EXECUTE_READWRITE);
 			if (!cache_code_start_ptr)
 				cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
+#elif defined(__3DS__)
+			cache_code_start_ptr = (Bit8u*)memalign(4096, CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
+			_SetMemoryPermission(cache_code_start_ptr, CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP / 4096, 7);
+//			svcSleepThread(1000000000);
 #else
 			cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
 #endif

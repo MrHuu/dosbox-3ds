@@ -526,8 +526,10 @@ Bitu CALLBACK_SetupExtra(Bitu callback, Bitu type, PhysPt physAddress, bool use_
 		if (use_cb)
 			phys_writeb(physAddress+0x1B,(Bit8u)0xC3);	//A RETN Instruction
 		return (use_cb?32:27);
+#if !defined(__3DS__)
 	default:
 		E_Exit("CALLBACK:Setup:Illegal type %" sBitfs(u),type);
+#endif
 	}
 	return 0;
 }

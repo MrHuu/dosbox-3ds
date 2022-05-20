@@ -395,8 +395,13 @@ void DOSBOX_Init(void) {
 	SDLNetInited = false;
 
 	// Some frequently used option sets
+#if defined(__3DS__)
+	const char *rates[] = { "22050", "48000", "44100", "32000", "16000", "11025", "8000", "49716", 0 };
+	const char *oplrates[] = { "22050", "49716", "48000", "44100", "32000", "16000", "11025", "8000", 0 };
+#else
 	const char *rates[] = {  "44100", "48000", "32000","22050", "16000", "11025", "8000", "49716", 0 };
 	const char *oplrates[] = {   "44100", "49716", "48000", "32000","22050", "16000", "11025", "8000", 0 };
+#endif
 	const char *ios[] = { "220", "240", "260", "280", "2a0", "2c0", "2e0", "300", 0 };
 	const char *irqssb[] = { "7", "5", "3", "9", "10", "11", "12", 0 };
 	const char *dmassb[] = { "1", "5", "0", "3", "6", "7", 0 };
@@ -451,7 +456,11 @@ void DOSBOX_Init(void) {
 	Pbool->Set_help("Do aspect correction, if your output method doesn't support scaling this can slow things down!");
 
 	Pmulti = secprop->Add_multi("scaler",Property::Changeable::Always," ");
+#if defined(__3DS__)
+	Pmulti->SetValue("none");
+#else
 	Pmulti->SetValue("normal2x");
+#endif
 	Pmulti->Set_help("Scaler used to enlarge/enhance low resolution modes. If 'forced' is appended,\n"
 	                 "then the scaler will be used even if the result might not be desired.\n"
 					 "To fit a scaler in the resolution used at full screen may require a border or side bars,\n"
@@ -541,18 +550,28 @@ void DOSBOX_Init(void) {
 	secprop=control->AddSection_prop("mixer",&MIXER_Init);
 	Pbool = secprop->Add_bool("nosound",Property::Changeable::OnlyAtStart,false);
 	Pbool->Set_help("Enable silent mode, sound is still emulated though.");
-
+#if defined(__3DS__)
+	Pint = secprop->Add_int("rate",Property::Changeable::OnlyAtStart,22050);
+#else
 	Pint = secprop->Add_int("rate",Property::Changeable::OnlyAtStart,44100);
+#endif
 	Pint->Set_values(rates);
 	Pint->Set_help("Mixer sample rate, setting any device's rate higher than this will probably lower their sound quality.");
 
 	const char *blocksizes[] = {
 		 "1024", "2048", "4096", "8192", "512", "256", 0};
+#if defined(__3DS__)
+	Pint = secprop->Add_int("blocksize",Property::Changeable::OnlyAtStart,512);
+#else
 	Pint = secprop->Add_int("blocksize",Property::Changeable::OnlyAtStart,1024);
+#endif
 	Pint->Set_values(blocksizes);
 	Pint->Set_help("Mixer block size, larger blocks might help sound stuttering but sound will also be more lagged.");
-
+#if defined(__3DS__)
+	Pint = secprop->Add_int("prebuffer",Property::Changeable::OnlyAtStart,20);
+#else
 	Pint = secprop->Add_int("prebuffer",Property::Changeable::OnlyAtStart,25);
+#endif
 	Pint->SetMinMax(0,100);
 	Pint->Set_help("How many milliseconds of data to keep on top of the blocksize.");
 
@@ -617,8 +636,11 @@ void DOSBOX_Init(void) {
 	Pstring = secprop->Add_string("oplemu",Property::Changeable::WhenIdle,"default");
 	Pstring->Set_values(oplemus);
 	Pstring->Set_help("Provider for the OPL emulation. compat might provide better quality (see oplrate as well).");
-
+#if defined(__3DS__)
+	Pint = secprop->Add_int("oplrate",Property::Changeable::WhenIdle,22050);
+#else
 	Pint = secprop->Add_int("oplrate",Property::Changeable::WhenIdle,44100);
+#endif
 	Pint->Set_values(oplrates);
 	Pint->Set_help("Sample rate of OPL music emulation. Use 49716 for highest quality (set the mixer rate accordingly).");
 
@@ -649,8 +671,11 @@ void DOSBOX_Init(void) {
 	secprop = control->AddSection_prop("speaker",&PCSPEAKER_Init,true);//done
 	Pbool = secprop->Add_bool("pcspeaker",Property::Changeable::WhenIdle,true);
 	Pbool->Set_help("Enable PC-Speaker emulation.");
-
+#if defined(__3DS__)
+	Pint = secprop->Add_int("pcrate",Property::Changeable::WhenIdle,22050);
+#else
 	Pint = secprop->Add_int("pcrate",Property::Changeable::WhenIdle,44100);
+#endif
 	Pint->Set_values(rates);
 	Pint->Set_help("Sample rate of the PC-Speaker sound generation.");
 
@@ -659,8 +684,11 @@ void DOSBOX_Init(void) {
 	Pstring = secprop->Add_string("tandy",Property::Changeable::WhenIdle,"auto");
 	Pstring->Set_values(tandys);
 	Pstring->Set_help("Enable Tandy Sound System emulation. For 'auto', emulation is present only if machine is set to 'tandy'.");
-
+#if defined(__3DS__)
+	Pint = secprop->Add_int("tandyrate",Property::Changeable::WhenIdle,22050);
+#else
 	Pint = secprop->Add_int("tandyrate",Property::Changeable::WhenIdle,44100);
+#endif
 	Pint->Set_values(rates);
 	Pint->Set_help("Sample rate of the Tandy 3-Voice generation.");
 

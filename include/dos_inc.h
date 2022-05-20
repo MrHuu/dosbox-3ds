@@ -287,19 +287,36 @@ public:
 
 	void	SaveVectors			(void);
 	void	RestoreVectors		(void);
+#if defined(__3DS__)
+	void	SetSize				(Bit16u size)			{ SaveIt(2,0x02,size);			};
+	Bit16u	GetSize				(void)					{ return (Bit16u)GetIt(2,0x02);	};
+	void	SetEnvironment		(Bit16u envseg)			{ SaveIt(2,0x2c,envseg);		};
+	Bit16u	GetEnvironment		(void)					{ return (Bit16u)GetIt(2,0x2c);	};
+#else
 	void	SetSize				(Bit16u size)			{ sSave(sPSP,next_seg,size);		};
 	Bit16u	GetSize				(void)					{ return (Bit16u)sGet(sPSP,next_seg);		};
 	void	SetEnvironment		(Bit16u envseg)			{ sSave(sPSP,environment,envseg);	};
 	Bit16u	GetEnvironment		(void)					{ return (Bit16u)sGet(sPSP,environment);	};
+#endif
 	Bit16u	GetSegment			(void)					{ return seg;						};
 	void	SetFileHandle		(Bit16u index, Bit8u handle);
 	Bit8u	GetFileHandle		(Bit16u index);
+
+#if defined(__3DS__)
+	void	SetParent			(Bit16u parent)			{ SaveIt(2,0x16,parent);		};
+	Bit16u	GetParent			(void)					{ return (Bit16u)GetIt(2,0x16);	};
+	void	SetStack			(RealPt stackpt)		{ SaveIt(4,0x2e,stackpt);		};
+	RealPt	GetStack			(void)					{ return GetIt(4,0x2e);			};
+	void	SetInt22			(RealPt int22pt)		{ SaveIt(4,0x0A,int22pt);		};
+	RealPt	GetInt22			(void)					{ return GetIt(4,0x0A);			};
+#else
 	void	SetParent			(Bit16u parent)			{ sSave(sPSP,psp_parent,parent);	};
 	Bit16u	GetParent			(void)					{ return (Bit16u)sGet(sPSP,psp_parent);		};
 	void	SetStack			(RealPt stackpt)		{ sSave(sPSP,stack,stackpt);		};
 	RealPt	GetStack			(void)					{ return sGet(sPSP,stack);			};
 	void	SetInt22			(RealPt int22pt)		{ sSave(sPSP,int_22,int22pt);		};
 	RealPt	GetInt22			(void)					{ return sGet(sPSP,int_22);			};
+#endif
 	void	SetFCB1				(RealPt src);
 	void	SetFCB2				(RealPt src);
 	void	SetCommandTail		(RealPt src);	

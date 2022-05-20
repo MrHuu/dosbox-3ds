@@ -179,32 +179,72 @@ void DOS_PSP::MakeNew(Bit16u mem_size) {
 //	DOS_PSP prevpsp(dos.psp());
 	/* Clear it first */
 	Bitu i;
+#if defined(__3DS__)
+	for (i=0;i<0x100;i++) mem_writeb(pt+i,0);
+#else
 	for (i=0;i<sizeof(sPSP);i++) mem_writeb(pt+i,0);
+#endif
 	// Set size
+#if defined(__3DS__)
+	SaveIt(2,0x02,seg+mem_size);
+#else
 	sSave(sPSP,next_seg,seg+mem_size);
+#endif
 	/* far call opcode */
+#if defined(__3DS__)
+	SaveIt(1,0x05,0xea);
+#else
 	sSave(sPSP,far_call,0xea);
+#endif
 	// far call to interrupt 0x21 - faked for bill & ted 
 	// lets hope nobody really uses this address
+#if defined(__3DS__)
+	SaveIt(4,0x06,RealMake(0xDEAD,0xFFFF));
+#else
 	sSave(sPSP,cpm_entry,RealMake(0xDEAD,0xFFFF));
+#endif
+
+#if defined(__3DS__)
+	/* Standard blocks,int 20  and int21 retf */
+	SaveIt(1,0x00,0xcd); // INT...
+	SaveIt(1,0x01,0x20); // ...20H
+	SaveIt(1,0x50,0xcd); // INT
+	SaveIt(1,0x51,0x21); // ...21H
+	SaveIt(1,0x52,0xcb); // RETF
+
+	/* psp and psp-parent */
+	SaveIt(2,0x16,dos.psp());
+	SaveIt(4,0x38,0xffffffff);
+	SaveIt(2,0x40,0x0005);
+#else
 	/* Standard blocks,int 20  and int21 retf */
 	sSave(sPSP,exit[0],0xcd);
 	sSave(sPSP,exit[1],0x20);
 	sSave(sPSP,service[0],0xcd);
 	sSave(sPSP,service[1],0x21);
 	sSave(sPSP,service[2],0xcb);
+
 	/* psp and psp-parent */
 	sSave(sPSP,psp_parent,dos.psp());
 	sSave(sPSP,prev_psp,0xffffffff);
 	sSave(sPSP,dos_version,0x0005);
+#endif
 	/* terminate 22,break 23,crititcal error 24 address stored */
 	SaveVectors();
 
 	/* FCBs are filled with 0 */
 	// ....
+
+#if defined(__3DS__)
 	/* Init file pointer and max_files */
 	sSave(sPSP,file_table,RealMake(seg,offsetof(sPSP,files)));
 	sSave(sPSP,max_files,20);
+	SaveIt(4,0x34,RealMake(seg,offsetof(sPSP,files)));
+	SaveIt(2,0x32,20);
+#else
+	/* Init file pointer and max_files */
+	sSave(sPSP,file_table,RealMake(seg,offsetof(sPSP,files)));
+#endif
 	for (Bit16u ct=0;ct<20;ct++) SetFileHandle(ct,0xff);
 
 	/* User Stack pointer */
@@ -214,29 +254,51 @@ void DOS_PSP::MakeNew(Bit16u mem_size) {
 }
 
 Bit8u DOS_PSP::GetFileHandle(Bit16u index) {
+#if defined(__3DS__)
+	if (index>=GetIt(2,0x32)) return 0xff;
+	PhysPt files=Real2Phys(GetIt(4,0x34));
+#else
 	if (index>=sGet(sPSP,max_files)) return 0xff;
 	PhysPt files=Real2Phys(sGet(sPSP,file_table));
+#endif
 	return mem_readb(files+index);
 }
 
 void DOS_PSP::SetFileHandle(Bit16u index, Bit8u handle) {
+#if defined(__3DS__)
+	if (index<GetIt(2,0x32)) {
+		PhysPt files=Real2Phys(GetIt(4,0x34));
+		mem_writeb(files+index,handle);
+	}
+#else
 	if (index<sGet(sPSP,max_files)) {
 		PhysPt files=Real2Phys(sGet(sPSP,file_table));
 		mem_writeb(files+index,handle);
 	}
+#endif
 }
 
 Bit16u DOS_PSP::FindFreeFileEntry(void) {
+#if defined(__3DS__)
+	PhysPt files=Real2Phys(GetIt(4,0x34));
+	for (Bit16u i=0;i<GetIt(2,0x32);i++) {
+#else
 	PhysPt files=Real2Phys(sGet(sPSP,file_table));
 	for (Bit16u i=0;i<sGet(sPSP,max_files);i++) {
+#endif
 		if (mem_readb(files+i)==0xff) return i;
 	}	
 	return 0xff;
 }
 
 Bit16u DOS_PSP::FindEntryByHandle(Bit8u handle) {
+#if defined(__3DS__)
+	PhysPt files=Real2Phys(GetIt(4,0x34));
+	for (Bit16u i=0;i<GetIt(2,0x32);i++) {
+#else
 	PhysPt files=Real2Phys(sGet(sPSP,file_table));
 	for (Bit16u i=0;i<sGet(sPSP,max_files);i++) {
+#endif
 		if (mem_readb(files+i)==handle) return i;
 	}	
 	return 0xFF;
@@ -267,40 +329,73 @@ void DOS_PSP::CopyFileTable(DOS_PSP* srcpsp,bool createchildpsp) {
 }
 
 void DOS_PSP::CloseFiles(void) {
+#if defined(__3DS__)
+	for (Bit16u i=0;i<GetIt(2,0x32);i++) {
+#else
 	for (Bit16u i=0;i<sGet(sPSP,max_files);i++) {
+#endif
 		DOS_CloseFile(i);
 	}
 }
 
 void DOS_PSP::SaveVectors(void) {
 	/* Save interrupt 22,23,24 */
+#if defined(__3DS__)
+	SaveIt(4,0x0A,RealGetVec(0x22));
+	SaveIt(4,0x0E,RealGetVec(0x23));
+	SaveIt(4,0x12,RealGetVec(0x24));
+#else
 	sSave(sPSP,int_22,RealGetVec(0x22));
 	sSave(sPSP,int_23,RealGetVec(0x23));
 	sSave(sPSP,int_24,RealGetVec(0x24));
+#endif
 }
 
 void DOS_PSP::RestoreVectors(void) {
 	/* Restore interrupt 22,23,24 */
+#if defined(__3DS__)
+	RealSetVec(0x22,GetIt(4,0x0A));
+	RealSetVec(0x23,GetIt(4,0x0E));
+	RealSetVec(0x24,GetIt(4,0x12));
+#else
 	RealSetVec(0x22,sGet(sPSP,int_22));
 	RealSetVec(0x23,sGet(sPSP,int_23));
 	RealSetVec(0x24,sGet(sPSP,int_24));
+#endif
 }
 
 void DOS_PSP::SetCommandTail(RealPt src) {
 	if (src) {	// valid source
+#if defined(__3DS__)
+		MEM_BlockCopy(pt+128,Real2Phys(src),128);
+#else
 		MEM_BlockCopy(pt+offsetof(sPSP,cmdtail),Real2Phys(src),128);
+#endif
 	} else {	// empty
+#if defined(__3DS__)
+		SaveIt(1,128,0);
+		mem_writeb(pt+129,0x0d);
+#else
 		sSave(sPSP,cmdtail.count,0x00);
 		mem_writeb(pt+offsetof(sPSP,cmdtail.buffer),0x0d);
+#endif
 	};
 }
 
 void DOS_PSP::SetFCB1(RealPt src) {
+#if defined(__3DS__)
+	if (src) MEM_BlockCopy(PhysMake(seg,0x5c),Real2Phys(src),16);
+#else
 	if (src) MEM_BlockCopy(PhysMake(seg,offsetof(sPSP,fcb1)),Real2Phys(src),16);
+#endif
 }
 
 void DOS_PSP::SetFCB2(RealPt src) {
+#if defined(__3DS__)
+	if (src) MEM_BlockCopy(PhysMake(seg,0x6c),Real2Phys(src),16);
+#else
 	if (src) MEM_BlockCopy(PhysMake(seg,offsetof(sPSP,fcb2)),Real2Phys(src),16);
+#endif
 }
 
 bool DOS_PSP::SetNumFiles(Bit16u fileNum) {
@@ -313,9 +408,17 @@ bool DOS_PSP::SetNumFiles(Bit16u fileNum) {
 		Bit16u para = (fileNum/16)+((fileNum%16)>0);
 		RealPt data	= RealMake(DOS_GetMemory(para),0);
 		for (Bit16u i=0; i<fileNum; i++) mem_writeb(Real2Phys(data)+i,(i<20)?GetFileHandle(i):0xFF);
+#if defined(__3DS__)
+		SaveIt(4,0x34,data);
+#else
 		sSave(sPSP,file_table,data);
+#endif
 	}
+#if defined(__3DS__)
+	SaveIt(2,0x32,fileNum);
+#else
 	sSave(sPSP,max_files,fileNum);
+#endif
 	return true;
 }
 

@@ -54,6 +54,11 @@
 #define MAPPERFILE "mapper-" VERSION ".map"
 //#define DISABLE_JOYSTICK
 
+#if defined(__3DS__)
+#include "../platform/ctr/ctr_input.h"
+void MountDOSBoxDir(char DriveLetter, const char *path);
+#endif
+
 #if C_OPENGL
 #include "SDL_opengl.h"
 //Define to disable the usage of the pixel buffer object
@@ -435,7 +440,13 @@ SDL_Surface* SDL_SetVideoMode_Wrap(int width,int height,int bpp,Bit32u flags){
 	SDL_Surface* s = SDL_SetVideoMode(width,height,bpp,flags);
 #endif //SETMODE_RESTARTS_SUBSYSTEM
 #else  //C_OPENGL
+
+#if defined(__3DS__)
+	SDL_Surface* s = SDL_SetVideoMode(width,height,bpp,flags|SDL_FULLSCREEN/*|SDL_CONSOLEBOTTOM*/);
+#else
 	SDL_Surface* s = SDL_SetVideoMode(width,height,bpp,flags);
+#endif
+
 #endif
 
 
@@ -558,10 +569,14 @@ Bitu GFX_GetBestMode(Bitu flags) {
 check_surface:
 		flags &= ~GFX_LOVE_8;		//Disable love for 8bpp modes
 		/* Check if we can satisfy the depth it loves */
+#if defined(__3DS__)
+		if (flags & GFX_LOVE_16) testbpp=16;
+#else
 		if (flags & GFX_LOVE_8) testbpp=8;
 		else if (flags & GFX_LOVE_15) testbpp=15;
 		else if (flags & GFX_LOVE_16) testbpp=16;
 		else if (flags & GFX_LOVE_32) testbpp=32;
+#endif
 		else testbpp=0;
 #if C_DDRAW
 check_gotbpp:
@@ -804,10 +819,17 @@ Bitu GFX_SetSize(Bitu width,Bitu height,Bitu flags,double scalex,double scaley,G
 	switch (sdl.desktop.want_type) {
 	case SCREEN_SURFACE:
 dosurface:
-		if (flags & GFX_CAN_8) bpp=8;
-		if (flags & GFX_CAN_15) bpp=15;
+#if defined(__3DS__)
 		if (flags & GFX_CAN_16) bpp=16;
+#else
+		if (flags & GFX_CAN_8) bpp=8;
+
+		if (flags & GFX_CAN_15) bpp=15;
+
+		if (flags & GFX_CAN_16) bpp=16;
+
 		if (flags & GFX_CAN_32) bpp=32;
+#endif
 		sdl.desktop.type=SCREEN_SURFACE;
 		sdl.clip.w=width;
 		sdl.clip.h=height;
@@ -2051,6 +2073,11 @@ bool GFX_IsFullscreen(void) {
 #endif
 
 void GFX_Events() {
+
+
+#if defined(__3DS__)
+	GetInput();
+#else
 	//Don't poll too often. This can be heavy on the OS, especially Macs.
 	//In idle mode 3000-4000 polls are done per second without this check.
 	//Macs, with this code,  max 250 polls per second. (non-macs unused default max 500)
@@ -2213,6 +2240,7 @@ void GFX_Events() {
 			MAPPER_CheckEvent(&event);
 		}
 	}
+#endif
 }
 
 #if defined (WIN32)
@@ -2409,6 +2437,7 @@ void restart_program(std::vector<std::string> & parameters) {
 	DEBUG_ShutDown(NULL);
 #endif
 
+#if !defined(__3DS__)
 	if(execvp(newargs[0], newargs) == -1) {
 #ifdef WIN32
 		if(newargs[0][0] == '\"') {
@@ -2421,6 +2450,7 @@ void restart_program(std::vector<std::string> & parameters) {
 #endif
 		E_Exit("Restarting failed");
 	}
+#endif
 	delete [] newargs;
 }
 void Restart(bool pressed) { // mapper handler
@@ -2537,6 +2567,12 @@ void os2_exit()
 
 //extern void UI_Init(void);
 int main(int argc, char* argv[]) {
+
+#if defined(__3DS__)
+	osSetSpeedupEnable(true);
+	gfxInit(NULL, GSP_BGR8_OES, false);
+#endif
+
 #ifdef OS2
         PPIB pib;
         PTIB tib;
@@ -2626,9 +2662,15 @@ int main(int argc, char* argv[]) {
 #endif
 	// Don't init timers, GetTicks seems to work fine and they can use a fair amount of power (Macs again)
 	// Please report problems with audio and other things.
+#if defined(__3DS__)
+	if ( SDL_Init( SDL_INIT_AUDIO|SDL_INIT_VIDEO
+		) < 0 ) E_Exit("Can't init SDL %s",SDL_GetError());
+	SDL_ShowCursor(SDL_DISABLE);
+#else
 	if ( SDL_Init( SDL_INIT_AUDIO|SDL_INIT_VIDEO | /*SDL_INIT_TIMER |*/ SDL_INIT_CDROM
 		|SDL_INIT_NOPARACHUTE
 		) < 0 ) E_Exit("Can't init SDL %s",SDL_GetError());
+#endif
 	sdl.inited = true;
 
 #ifndef DISABLE_JOYSTICK
@@ -2750,6 +2792,9 @@ int main(int argc, char* argv[]) {
 		/* Init the keyMapper */
 		MAPPER_Init();
 		if (control->cmdline->FindExist("-startmapper")) MAPPER_RunInternal();
+#if defined(__3DS__)
+//		MountDOSBoxDir('C', "sdmc:/3ds/DOSBox");
+#endif
 		/* Start up main machine */
 		control->StartUp();
 		/* Shutdown everything */
@@ -2758,6 +2803,20 @@ int main(int argc, char* argv[]) {
 		sticky_keys(true);
 #endif
 		GFX_ShowMsg("Exit to error: %s",error);
+
+#if defined(__3DS__)
+		printf(" - holding\n");
+		SDL_Delay(10000);
+
+		if (!gspHasGpuRight())
+			gfxInitDefault();
+
+		errorConf err;
+		errorInit(&err, ERROR_TEXT, CFG_LANGUAGE_EN);
+		errorText(&err, error);
+		errorDisp(&err);
+		gfxExit();
+#else
 		fflush(NULL);
 		if(sdl.wait_on_error) {
 			//TODO Maybe look for some way to show message in linux?
@@ -2769,7 +2828,7 @@ int main(int argc, char* argv[]) {
 			Sleep(5000);
 #endif
 		}
-
+#endif
 	}
 	catch (int){
 		; //nothing, pressed killswitch

@@ -33,6 +33,10 @@
 #include <winbase.h>
 #endif
 
+#if defined(__3DS__)
+#include "../../platform/ctr/ctr_memory.h"
+#endif
+
 #if (C_HAVE_MPROTECT)
 #include <sys/mman.h>
 

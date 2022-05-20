@@ -33,6 +33,10 @@
 #include "serialport.h"
 #include <time.h>
 
+#ifdef __3DS__
+#define DB_HAVE_CLOCK_GETTIME
+#endif
+
 #if defined(DB_HAVE_CLOCK_GETTIME) && ! defined(WIN32)
 //time.h is already included
 #else

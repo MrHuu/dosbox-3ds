@@ -83,9 +83,14 @@ typedef Bit8u HostReg;
 #define HOST_lr HOST_r14
 #define HOST_pc HOST_r15
 
+#if defined(__3DS__)
+#include "../../platform/ctr/ctr_memory.h"
+#endif
 
 static void cache_block_closing(const Bit8u* block_start,Bitu block_size) {
-#if (__ARM_EABI__)
+#if defined(__3DS__)
+	_InvalidateAndFlushCaches();
+#elif (__ARM_EABI__)
 	//flush cache - eabi
 	register unsigned long _beg __asm ("a1") = (unsigned long)(block_start);				// block start
 	register unsigned long _end __asm ("a2") = (unsigned long)(block_start+block_size);		// block end

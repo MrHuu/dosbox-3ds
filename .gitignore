@@ -1,0 +1,4 @@
+*.elf
+*.3dsx
+*.cia
+build/
