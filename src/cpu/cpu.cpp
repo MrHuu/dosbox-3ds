@@ -2091,8 +2091,12 @@ void CPU_ENTER(bool use32,Bitu bytes,Bitu level) {
 	sp_index-=bytes;
 	reg_esp=(reg_esp&cpu.stack.notmask)|((sp_index)&cpu.stack.mask);
 }
-
+#if defined(__3DS__)
+#include "../platform/ctr/ctr_input.h"
+void CPU_CycleIncrease(bool pressed) {
+#else
 static void CPU_CycleIncrease(bool pressed) {
+#endif
 	if (!pressed) return;
 	if (CPU_CycleAutoAdjust) {
 		CPU_CyclePercUsed+=5;
@@ -2116,8 +2120,11 @@ static void CPU_CycleIncrease(bool pressed) {
 		GFX_SetTitle(CPU_CycleMax,-1,false);
 	}
 }
-
+#if defined(__3DS__)
+void CPU_CycleDecrease(bool pressed) {
+#else
 static void CPU_CycleDecrease(bool pressed) {
+#endif
 	if (!pressed) return;
 	if (CPU_CycleAutoAdjust) {
 		CPU_CyclePercUsed-=5;

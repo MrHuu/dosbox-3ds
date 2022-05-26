@@ -63,7 +63,24 @@ APP_ICON            := $(TOPDIR)/ctr/icon.png
 APP_BANNER_IMAGE    := $(TOPDIR)/ctr/banner.png
 APP_BANNER_AUDIO    := $(TOPDIR)/ctr/audio_silent.wav
 
-GFX_PNG             := $(TOPDIR)/ctr/gfx/ctr_bottom_kbd.png
+GFX_PNG             := $(TOPDIR)/src/platform/ctr/include/font.png \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_low.png    \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_up.png     \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_sym.png    \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_mouse.png      \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_mapper.png     \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_setting.png    \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_idle.png       \
+                       $(TOPDIR)/ctr/gfx/kbd/key_key.png           \
+                       $(TOPDIR)/ctr/gfx/kbd/key_fkey.png          \
+                       $(TOPDIR)/ctr/gfx/kbd/key_alt.png           \
+                       $(TOPDIR)/ctr/gfx/kbd/key_ctrl.png          \
+                       $(TOPDIR)/ctr/gfx/kbd/key_enter_top.png     \
+                       $(TOPDIR)/ctr/gfx/kbd/key_enter_bot.png     \
+                       $(TOPDIR)/ctr/gfx/kbd/key_shift.png         \
+                       $(TOPDIR)/ctr/gfx/kbd/key_caps.png          \
+                       $(TOPDIR)/ctr/gfx/kbd/key_space.png         \
+                       $(TOPDIR)/ctr/gfx/kbd/key_tab.png
 
 GFX_HDR := $(GFX_PNG:.png=_bgr.h)
 GFX_BIN := $(GFX_PNG:.png=.bgr.o)
@@ -290,7 +307,7 @@ $(TARGET).smdh    : $(APP_ICON)
 
 %.bgr: %.png
 	@echo $(notdir $<)
-	@convert $< -rotate 90 $@
+	@ffmpeg -vcodec png -i $< -vcodec rawvideo -f rawvideo -vf "transpose=1" -pix_fmt rgb565 $@
 
 #---------------------------------------------------------------------------------
 # rules for assembling GPU shaders

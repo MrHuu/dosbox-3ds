@@ -442,7 +442,7 @@ SDL_Surface* SDL_SetVideoMode_Wrap(int width,int height,int bpp,Bit32u flags){
 #else  //C_OPENGL
 
 #if defined(__3DS__)
-	SDL_Surface* s = SDL_SetVideoMode(width,height,bpp,flags|SDL_FULLSCREEN/*|SDL_CONSOLEBOTTOM*/);
+	SDL_Surface* s = SDL_SetVideoMode(width,height,16,flags|SDL_TOPSCR|SDL_FITHEIGHT/*|SDL_CONSOLEBOTTOM*/);
 #else
 	SDL_Surface* s = SDL_SetVideoMode(width,height,bpp,flags);
 #endif
@@ -599,7 +599,10 @@ check_gotbpp:
 			if (flags & GFX_CAN_32) flags&=~(GFX_CAN_8|GFX_CAN_15|GFX_CAN_16);
 			break;
 		}
-		flags |= GFX_CAN_RANDOM;
+//		flags |= GFX_CAN_RANDOM;
+#if defined(__3DS__)
+		flags |= GFX_CAN_16;
+#endif
 		break;
 #if C_DDRAW
 	case SCREEN_SURFACE_DDRAW:
@@ -820,14 +823,11 @@ Bitu GFX_SetSize(Bitu width,Bitu height,Bitu flags,double scalex,double scaley,G
 	case SCREEN_SURFACE:
 dosurface:
 #if defined(__3DS__)
-		if (flags & GFX_CAN_16) bpp=16;
+		bpp=16;
 #else
 		if (flags & GFX_CAN_8) bpp=8;
-
 		if (flags & GFX_CAN_15) bpp=15;
-
 		if (flags & GFX_CAN_16) bpp=16;
-
 		if (flags & GFX_CAN_32) bpp=32;
 #endif
 		sdl.desktop.type=SCREEN_SURFACE;
@@ -2570,7 +2570,7 @@ int main(int argc, char* argv[]) {
 
 #if defined(__3DS__)
 	osSetSpeedupEnable(true);
-	gfxInit(NULL, GSP_BGR8_OES, false);
+//	gfxInit(NULL, GSP_RGB565_OES , false);
 #endif
 
 #ifdef OS2
