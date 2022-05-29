@@ -2425,6 +2425,12 @@ void MAPPER_Init(void) {
 #include "SDL_syswm.h"
 #include <X11/XKBlib.h>
 #endif
+
+#if defined(__3DS__)
+#include "../platform/ctr/ctr_input.h"
+std::string ctr_mapperFile;
+#endif
+
 void MAPPER_StartUp(Section * sec) {
 	Section_prop * section=static_cast<Section_prop *>(sec);
 	mapper.sticks.num=0;
@@ -2558,5 +2564,8 @@ void MAPPER_StartUp(Section * sec) {
 	Prop_path* pp = section->Get_path("mapperfile");
 	mapper.filename = pp->realpath;
 	MAPPER_AddHandler(&MAPPER_Run,MK_f1,MMOD1,"mapper","Mapper");
+#if defined(__3DS__)
+	ctr_mapperFile = mapper.filename;
+#endif
 }
 

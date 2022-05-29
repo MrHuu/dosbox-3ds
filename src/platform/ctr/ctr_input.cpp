@@ -1,24 +1,10 @@
 #include "ctr_input.h"
 #include "text.h"
+#include "ctr_keyboard.h"
 
-bool KEY_PRESSED_UP;
-bool KEY_PRESSED_RIGHT;
-bool KEY_PRESSED_DOWN;
-bool KEY_PRESSED_LEFT;
-bool KEY_PRESSED_A;
-bool KEY_PRESSED_B;
-bool KEY_PRESSED_X;
-bool KEY_PRESSED_Y;
-bool KEY_PRESSED_L;
-bool KEY_PRESSED_R;
-bool KEY_PRESSED_SELECT;
-bool KEY_PRESSED_START;
-bool KEY_PRESSED_ZL;
-bool KEY_PRESSED_ZR;
-
-KBD_KEYS prevHeld = KBD_NONE;
+KBD_KEYS prevHeld, tmp_btn_id = KBD_NONE;
 u64 elapsed_tick;
-bool KeyHeld, kbdHeld, isInit = false;
+bool KeyHeld, kbdHeld, isInit, btnMapping = false;
 u8 CurrentKey;
 u8 PreviousKey;
 
@@ -49,21 +35,24 @@ typedef struct
 	u64  touch_timestamp;
 	bool shouldCheckIdle;
 	bool shouldCheckMenu;
-	bool isShift;
-	bool isCaps;
 	bool isAlt;
+	bool isAltHeld;
 	bool isCtrl;
+	bool isCtrlHeld;
+	bool isShift;
+	bool isShiftHeld;
+	bool isCaps;
+	bool isCapsHeld;
 } ctr_bottom_mode_t;
-ctr_bottom_mode_t CurrentMode = { MODE_IDLE, 0, 0, 0, 0, false, false, false, false, false, false };
+ctr_bottom_mode_t CurrentMode = { MODE_IDLE, 0, 0, 0, 0, false, false, false, false, false, false, false, false, false };
 
 typedef struct
 {
 	bool bottom_init;
 	bool bottom_enabled;
 	bool bottom_idle;
-	bool gfx_drawn;
 } ctr_bottom_gfx_t;
-ctr_bottom_gfx_t ctr_bottom_gfx = { false, false, false, false };
+ctr_bottom_gfx_t ctr_bottom_gfx = { false, false, false };
 
 typedef struct
 {
@@ -83,7 +72,7 @@ typedef struct
 	int32_t mouse_button_y_origin;
 	bool ShouldCheck;
 } ctr_bottom_state_mouse_t;
-ctr_bottom_state_mouse_t ctr_bottom_state_mouse = { 0, 0, 0, 0, 0, 0, 0, 0, 2, 0, false, false, false };
+ctr_bottom_state_mouse_t ctr_bottom_state_mouse = { 0, 0, 0, 0, 0, 0, 0, 0, 1, 0, false, false, false };
 
 struct ctr_bottom_kbd_gfx_t {
 	const u8* gfxId;
@@ -105,6 +94,70 @@ struct ctr_bottom_kbd_gfx_t kbd_gfx[] = {
 	{key_space_bgr,     31,141, 90,167},
 	{key_tab_bgr,       31, 13,  2,101}
 };
+
+struct ctr_controller_t {
+	unsigned int btn_id;
+	const char* key_desc;
+	unsigned int pos_desc_y;
+	unsigned int pos_desc_x;
+	bool isPressed;
+};
+
+struct ctr_controller_t ctr_controller[] = {
+	{KEY_ZL,         "ZL",       214,  10, false},
+	{KEY_L,          "L",        196,  10, false},
+	{KEY_CPAD_UP,    "CP Up",    178,  10, false},
+	{KEY_CPAD_DOWN,  "CP Down",  160,  10, false},
+	{KEY_CPAD_LEFT,  "CP Left",  142,  10, false},
+	{KEY_CPAD_RIGHT, "CP Right", 124,  10, false},
+	{KEY_DUP,        "DP Up",    106,  10, false},
+	{KEY_DDOWN,      "DP Down",   88,  10, false},
+	{KEY_DLEFT,      "DP Left",   70,  10, false},
+	{KEY_DRIGHT,     "DP Right",  52,  10, false},
+
+	{KEY_ZR,         "ZR",       214, 232, false},
+	{KEY_R,          "R",        196, 232, false},
+	{KEY_A,          "A",        178, 232, false},
+	{KEY_B,          "B",        160, 232, false},
+	{KEY_X,          "X",        142, 232, false},
+	{KEY_Y,          "Y",        124, 232, false},
+	{KEY_START,      "Start",    106, 232, false},
+	{KEY_SELECT,     "Select",    88, 232, false}
+};
+
+struct ctr_controller_map_t {
+	KBD_KEYS map_id;
+};
+
+struct ctr_controller_map_t ctr_controller_map[] = {
+	{KBD_NONE},
+	{KBD_NONE},
+	{KBD_up},
+	{KBD_down},
+	{KBD_left},
+	{KBD_right},
+	{KBD_up},
+	{KBD_down},
+	{KBD_left},
+	{KBD_right},
+	{KBD_NONE},
+	{KBD_rightshift},
+	{KBD_up},
+	{KBD_space},
+	{KBD_rightctrl},
+	{KBD_rightalt},
+	{KBD_enter},
+	{KBD_esc}
+};
+
+void sysError(const char* error)
+{
+	errorConf msg;
+	errorInit(&msg, ERROR_TEXT, CFG_LANGUAGE_EN);
+	errorText(&msg, error);
+	errorDisp(&msg);
+	return;
+}
 
 void gfxDrawText(gfxScreen_t screen, gfx3dSide_t side, font_s* f, char* str, s16 x, s16 y)
 {
@@ -158,24 +211,30 @@ void gfxDrawSprite(gfxScreen_t screen, gfx3dSide_t side, u8* spriteData, u16 wid
 
 void gfxDrawScreen(u8 KeyboadState, s16 T_X, s16 T_Y, u8 Key)
 {
-	if ( CurrentMode.active_mode == MODE_IDLE )
-	{
-		gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_idle_bgr, 240, 320, 0, 0);
-	}
-	else
-	{
-		if ( CurrentMode.active_mode == MODE_KBD )
-		{
-			if (KeyboardState == STATE_SYMBOL)
+   switch (CurrentMode.active_mode)
+   {
+		case MODE_IDLE:
+			gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_idle_bgr, 240, 320, 0, 0);
+			break;
+
+		case MODE_KBD:
+			switch (KeyboardState)
 			{
-				gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_kbd_sym_bgr, 240, 320, 0, 0);
-			}
-			else
-			{
-				if (CurrentMode.isShift || CurrentMode.isCaps)
-					gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_kbd_up_bgr, 240, 320, 0, 0);
-				else
-					gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_kbd_low_bgr, 240, 320, 0, 0);
+				case STATE_SYMBOL:
+					if (CurrentMode.isShift)
+						gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_kbd_sym_alt_bgr, 240, 320, 0, 0);
+					else
+						gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_kbd_sym_bgr, 240, 320, 0, 0);
+					break;
+				case STATE_NUMBER:
+						gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_kbd_num_bgr, 240, 320, 0, 0);
+					break;
+				default:
+					if (CurrentMode.isShift || CurrentMode.isCaps)
+						gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_kbd_up_bgr, 240, 320, 0, 0);
+					else
+						gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_kbd_low_bgr, 240, 320, 0, 0);
+					break;
 			}
 			if(kbdHeld && (Key != KBD_NONE))
 				gfxDrawSprite(GFX_BOTTOM, GFX_LEFT,(u8*)kbd_gfx[GraphicID].gfxId, kbd_gfx[GraphicID].w, kbd_gfx[GraphicID].h, GraphicX, GraphicY);
@@ -193,89 +252,36 @@ void gfxDrawScreen(u8 KeyboadState, s16 T_X, s16 T_Y, u8 Key)
 				gfxDrawSprite(GFX_BOTTOM, GFX_LEFT,(u8*)kbd_gfx[4].gfxId, kbd_gfx[4].w, kbd_gfx[4].h, kbd_gfx[4].x, kbd_gfx[4].y);
 			if (CurrentMode.isCaps)
 				gfxDrawSprite(GFX_BOTTOM, GFX_LEFT,(u8*)kbd_gfx[5].gfxId, kbd_gfx[5].w, kbd_gfx[5].h, kbd_gfx[5].x, kbd_gfx[5].y);
-		}
-		else if ( CurrentMode.active_mode == MODE_MOUSE && T_Y < 200 )
-		{
-			char str_multiply[2];
-			sprintf(str_multiply, "%d", ctr_bottom_state_mouse.mouse_multiplier);
+			if(btnMapping)
+				gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)btn_mapper_bgr, 40, 320, 0, 0);
+			break;
 
-			gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_mouse_bgr, 240, 320, 0, 0);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_multiply, 240 - 185, 285);
-		}
-		else if ( CurrentMode.active_mode == MODE_MOUSE && T_Y > 200 )
-		{
-			gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_mouse_bgr, 240, 320, 0, 0);
-		}
-		else if ( CurrentMode.active_mode == MODE_MAPPER )
-		{
-			char str_btn_TMP[8];
+		case MODE_MOUSE:
+			if ( CurrentMode.active_mode == MODE_MOUSE && T_Y < 200 )
+			{
+				char str_multiply[2];
+				sprintf(str_multiply, "%d", ctr_bottom_state_mouse.mouse_multiplier);
 
-			char str_btn_zl[32];
-			char str_btn_l[32];
-			char str_btn_cpup[32];
-			char str_btn_cpdown[32];
-			char str_btn_cpleft[32];
-			char str_btn_cpright[32];
-			char str_btn_dup[32];
-			char str_btn_ddown[32];
-			char str_btn_dleft[32];
-			char str_btn_bright[32];
+				gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_mouse_bgr, 240, 320, 0, 0);
+				gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_multiply, 240 - 185, 285);
+			}
+			else if ( CurrentMode.active_mode == MODE_MOUSE && T_Y > 200 )
+				gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_mouse_bgr, 240, 320, 0, 0);
+			break;
 
-			char str_btn_zr[32];
-			char str_btn_r[32];
-			char str_btn_a[32];
-			char str_btn_b[32];
-			char str_btn_x[32];
-			char str_btn_y[32];
-			char str_btn_start[32];
-			char str_btn_select[32];
-
-			sprintf(str_btn_TMP,      "N/A");
-
-			sprintf(str_btn_zl,      "ZL        : %s", str_btn_TMP);
-			sprintf(str_btn_l,       "L         : %s", str_btn_TMP);
-			sprintf(str_btn_cpup,    "C-Pad Up  : %s", str_btn_TMP);
-			sprintf(str_btn_cpdown,  "C-Pad Down: %s", str_btn_TMP);
-			sprintf(str_btn_cpleft,  "C-Pad Left: %s", str_btn_TMP);
-			sprintf(str_btn_cpright, "C-Pad Left: %s", str_btn_TMP);
-			sprintf(str_btn_dup,     "D-Pad Up  : %s", str_btn_TMP);
-			sprintf(str_btn_ddown,   "D-Pad Down: %s", str_btn_TMP);
-			sprintf(str_btn_dleft,   "D-Pad Left: %s", str_btn_TMP);
-			sprintf(str_btn_bright,  "D-Pad Left: %s", str_btn_TMP);
-
-			sprintf(str_btn_zr,      "ZR        : %s", str_btn_TMP);
-			sprintf(str_btn_r,       "R         : %s", str_btn_TMP);
-			sprintf(str_btn_a,       "A         : %s", str_btn_TMP);
-			sprintf(str_btn_b,       "B         : %s", str_btn_TMP);
-			sprintf(str_btn_x,       "X         : %s", str_btn_TMP);
-			sprintf(str_btn_y,       "Y         : %s", str_btn_TMP);
-			sprintf(str_btn_start,   "Start     : %s", str_btn_TMP);
-			sprintf(str_btn_select,  "Select    : %s", str_btn_TMP);
+		case MODE_MAPPER:
+			char str_btn_buf[32];
 
 			gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_mapper_bgr, 240, 320, 0, 0);
+			for (int i = 0; i < 18; i++) {
+				sprintf(str_btn_buf,  "%s:  %s", ctr_controller[i].key_desc, ctr_kbd_desc[ctr_controller_map[i].map_id].key_desc);
+				gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_buf , ctr_controller[i].pos_desc_y, ctr_controller[i].pos_desc_x);
+			}
+			if (Key == 255)
+				gfxDrawSprite(GFX_BOTTOM, GFX_LEFT,(u8*)btn_save_bgr, 24, 80, 48, 120);
+			break;
 
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_zl     , 230 - 16, 10);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_l      , 230 - 34, 10);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_cpup   , 230 - 52, 10);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_cpdown , 230 - 70, 10);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_cpleft , 230 - 88, 10);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_cpright, 230 - 106, 10);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_dup    , 230 - 124, 10);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_ddown  , 230 - 142, 10);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_dleft  , 230 - 160, 10);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_bright , 230 - 178, 10);
-
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_zr     , 230 - 16, 232);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_r      , 230 - 34, 232);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_a      , 230 - 52, 232);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_b      , 230 - 70, 232);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_x      , 230 - 88, 232);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_y      , 230 - 106, 232);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_start  , 230 - 124, 232);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_btn_select , 230 - 142, 232);
-		}
-		else if ( CurrentMode.active_mode == MODE_SETTING )
-		{
+		case MODE_SETTING:
 			gfxDrawSprite(GFX_BOTTOM, GFX_LEFT, (u8*)ctr_bottom_setting_bgr, 240, 320, 0, 0);
 
 			char str_CPU_CycleMax[32];
@@ -284,17 +290,214 @@ void gfxDrawScreen(u8 KeyboadState, s16 T_X, s16 T_Y, u8 Key)
 			char str_frameskip[32];
 			sprintf(str_frameskip, "frameskip: %d", render.frameskip.max);
 
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_CPU_CycleMax, 240 - 38, 180);
-			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_frameskip , 240 - 86, 180);
-		}
+			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_CPU_CycleMax, 204, 180);
+			gfxDrawText(GFX_BOTTOM, GFX_LEFT, NULL, str_frameskip , 156, 180);
+			break;
 	}
 	gfxScreenSwapBuffers(GFX_BOTTOM,false);
 }
 
+static void MAPPER_SaveBinds(void)
+{
+	int i;
+	FILE *fptr;
 
+	if ((fptr = fopen(ctr_mapperFile.c_str(),"wb")) == NULL){
+		sysError("Error writing mapper file:\n\nCannot create mapper file.");
+		return;
+	}
+
+	for(i = 0; i < 18; ++i)
+		fwrite(&ctr_controller_map[i], sizeof(struct ctr_controller_map_t), 1, fptr);
+	fclose(fptr);
+
+	return;
+}
+
+static bool MAPPER_LoadBinds(void)
+{
+	int i;
+	FILE *fptr;
+
+	if ((fptr = fopen(ctr_mapperFile.c_str(),"rb")) == NULL){
+		sysError("Error reading mapper file:\n\nMapper file not found.");
+		return -1;
+	}
+
+	for(i = 0; i < 18; ++i)
+		fread(&ctr_controller_map[i], sizeof(struct ctr_controller_map_t), 1, fptr);
+	fclose(fptr);
+
+	return 0;
+}
+
+void MAPPER_SetBinds(unsigned int btn)
+{
+	tmp_btn_id = KBD_NONE;
+	bool TkbdHeld = true;
+	btnMapping = true;
+
+	CurrentMode.active_mode = MODE_KBD;
+	SetMod(0,true);
+
+	while(aptMainLoop()) {
+
+		hidScanInput();
+
+		u32 tmp_kDown = hidKeysHeld();
+
+		if (!tmp_kDown && TkbdHeld)
+		{
+			TkbdHeld = false;
+			gfxDrawScreen(KeyboardState, T_X, T_Y, 0);
+		}
+		else if ((tmp_kDown & KEY_TOUCH)&&!TkbdHeld)
+		{
+			touchPosition tmp_touch;
+			hidTouchRead(&tmp_touch);
+
+			if ((tmp_touch.py > 200) && (tmp_touch.px > 256 && tmp_touch.px < 319))
+			{
+				CurrentMode.active_mode = MODE_MAPPER;
+				btnMapping = false;
+				return;
+			}
+
+			TkbdHeld = true;
+
+			tmp_btn_id = TouchKey(tmp_touch.px,tmp_touch.py);
+			kbdHeld = true;
+			gfxDrawScreen(KeyboardState, T_X, T_Y, tmp_btn_id);
+			kbdHeld = false;
+
+			if (tmp_btn_id != KBD_NONE)
+			{
+				CurrentMode.active_mode = MODE_MAPPER;
+				ctr_controller_map[btn].map_id = tmp_btn_id;
+				btnMapping = false;
+				return;
+
+			}
+		}
+		gspWaitForVBlank();
+	}
+	return;
+}
+
+KBD_KEYS TouchKeyNum(s16 T_X, s16 T_Y)
+{
+	if (T_Y < 34)
+	{
+		if (T_X > 45 && T_X < 73)
+			{GraphicID = 0; GraphicX = 207; GraphicY = 2; return KBD_home;}
+		else if (T_X > 74 && T_X < 102)
+			{GraphicID = 1; GraphicX = 207; GraphicY = 32; return KBD_end;}
+		else if (T_X > 103 && T_X < 131)
+			{GraphicID = 1; GraphicX = 207; GraphicY = 56; return KBD_pageup;}
+		else if (T_X > 161 && T_X < 189)
+			{GraphicID = 1; GraphicX = 207; GraphicY = 80; return KBD_NONE;} /* KBD_numlock */
+		else if (T_X > 190 && T_X < 218)
+			{GraphicID = 1; GraphicX = 207; GraphicY = 104; return KBD_kpdivide;}
+		else if (T_X > 219 && T_X < 247)
+			{GraphicID = 1; GraphicX = 207; GraphicY = 128; return KBD_kpmultiply;}
+		else if (T_X > 248 && T_X < 276)
+			{GraphicID = 1; GraphicX = 207; GraphicY = 152; return KBD_kpminus;}
+		else
+			return KBD_NONE;
+	}
+	else if (T_Y > 34 && T_Y < 66)
+	{
+		if (T_X > 45 && T_X < 73)
+			{GraphicID = 0; GraphicX = 174; GraphicY = 2; return KBD_delete;}
+		else if (T_X > 74 && T_X < 102)
+			{GraphicID = 0; GraphicX = 174; GraphicY = 31; return KBD_insert;}
+		else if (T_X > 103 && T_X < 131)
+			{GraphicID = 0; GraphicX = 174; GraphicY = 60; return KBD_pagedown;}
+		else if (T_X > 161 && T_X < 189)
+			{GraphicID = 0; GraphicX = 174; GraphicY = 89; return KBD_kp7;}
+		else if (T_X > 190 && T_X < 218)
+			{GraphicID = 0; GraphicX = 174; GraphicY = 118; return KBD_kp8;}
+		else if (T_X > 219 && T_X < 247)
+			{GraphicID = 0; GraphicX = 174; GraphicY = 147; return KBD_kp9;}
+		else if (T_X > 248 && T_X < 276)
+			{GraphicID = 0; GraphicX = 174; GraphicY = 176; return KBD_kpplus;}
+		else
+			return KBD_NONE;
+	}
+	else if (T_Y > 67 && T_Y < 99)
+	{
+		if (T_X > 74 && T_X < 102)
+			{GraphicID = 0; GraphicX = 141; GraphicY = 2; return KBD_up;}
+		else if (T_X > 161 && T_X < 189)
+			{GraphicID = 0; GraphicX = 141; GraphicY = 31; return KBD_kp4;}
+		else if (T_X > 190 && T_X < 218)
+			{GraphicID = 0; GraphicX = 141; GraphicY = 60; return KBD_kp5;}
+		else if (T_X > 219 && T_X < 247)
+			{GraphicID = 0; GraphicX = 141; GraphicY = 89; return KBD_kp6;}
+		else if (T_X > 248 && T_X < 276)
+			{GraphicID = 0; GraphicX = 141; GraphicY = 118; return KBD_kpplus;}
+		else
+			return KBD_NONE;
+	}
+	else if (T_Y > 99 && T_Y < 133)
+	{
+		if (T_X > 45 && T_X < 73)
+			{GraphicID = 9; GraphicX = 108; GraphicY = 2; return KBD_left;}
+		else if (T_X > 74 && T_X < 102)
+			{GraphicID = 0; GraphicX = 108; GraphicY = 17; return KBD_down;}
+		else if (T_X > 103 && T_X < 131)
+			{GraphicID = 0; GraphicX = 108; GraphicY = 46; return KBD_right;}
+		else if (T_X > 161 && T_X < 189)
+			{GraphicID = 0; GraphicX = 108; GraphicY = 75; return KBD_kp1;}
+		else if (T_X > 190 && T_X < 218)
+			{GraphicID = 0; GraphicX = 108; GraphicY = 104; return KBD_kp2;}
+		else if (T_X > 219 && T_X < 247)
+			{GraphicID = 0; GraphicX = 108; GraphicY = 133; return KBD_kp3;}
+		else if (T_X > 248 && T_X < 276)
+			{GraphicID = 0; GraphicX = 108; GraphicY = 162; return KBD_kpenter;}
+		else
+			return KBD_NONE;
+	}
+	else if (T_Y > 133 && T_Y < 165)
+	{
+		if (T_X > 161 && T_X < 218)
+			{GraphicID = 5; GraphicX = 75; GraphicY = 2; return KBD_kp0;}
+		else if (T_X > 219 && T_X < 247)
+			{GraphicID = 0; GraphicX = 75; GraphicY = 38; return KBD_kpperiod;}
+		else if (T_X > 248 && T_X < 267)
+			{GraphicID = 0; GraphicX = 75; GraphicY = 67; return KBD_kpenter;}
+		else
+			return KBD_NONE;
+	}
+	else if (T_Y > 165 && T_Y < 199)
+	{
+		if (T_X > 1 && T_X < 45)
+		{
+			KeyboardState = STATE_SYMBOL;
+			return KBD_NONE;
+		}
+		else if (T_X > 44 && T_X < 89)
+		{
+			if (KeyboardState == STATE_NUMBER)
+				KeyboardState = STATE_LOWER;
+			else
+				KeyboardState = STATE_NUMBER;
+			return KBD_NONE;
+		}
+		else
+			return KBD_NONE;
+	}
+	else
+		return KBD_NONE;
+
+}
 
 KBD_KEYS TouchKey(s16 T_X, s16 T_Y)
 {
+	if (KeyboardState == STATE_NUMBER)
+	{
+		return TouchKeyNum(T_X, T_Y);
+	}
 	if (T_Y < 34)
 	{
 		if (T_X > 1 && T_X < 30)
@@ -356,25 +559,25 @@ KBD_KEYS TouchKey(s16 T_X, s16 T_Y)
 	else if (T_Y > 66 && T_Y < 100)
 	{
 		if (T_X > 1 && T_X < 30)
-			{GraphicID = 0; GraphicX = 141; GraphicY = 2; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_q;}
+			{GraphicID = 0; GraphicX = 141; GraphicY = 2; return (KeyboardState == STATE_SYMBOL)?KBD_grave:KBD_q;}
 		else if (T_X > 29 && T_X < 59)
-			{GraphicID = 0; GraphicX = 141; GraphicY = 31; return (KeyboardState == STATE_SYMBOL)?KBD_quote:KBD_w;}
+			{GraphicID = 0; GraphicX = 141; GraphicY = 31; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_w;}
 		else if (T_X > 58 && T_X < 88)
 			{GraphicID = 0; GraphicX = 141; GraphicY = 60; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_e;}
 		else if (T_X > 87 && T_X < 117)
 			{GraphicID = 0; GraphicX = 141; GraphicY = 89; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_r;}
 		else if (T_X > 116 && T_X < 146)
-			{GraphicID = 0; GraphicX = 141; GraphicY = 118; return (KeyboardState == STATE_SYMBOL)?KBD_minus:KBD_t;}
+			{GraphicID = 0; GraphicX = 141; GraphicY = 118; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_t;}
 		else if (T_X > 145 && T_X < 175)
-			{GraphicID = 0; GraphicX = 141; GraphicY = 147; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_y;}
+			{GraphicID = 0; GraphicX = 141; GraphicY = 147; return (KeyboardState == STATE_SYMBOL)?KBD_minus:KBD_y;}
 		else if (T_X > 174 && T_X < 204)
-			{GraphicID = 0; GraphicX = 141; GraphicY = 176; return (KeyboardState == STATE_SYMBOL)?KBD_grave:KBD_u;}
+			{GraphicID = 0; GraphicX = 141; GraphicY = 176; return (KeyboardState == STATE_SYMBOL)?KBD_equals:KBD_u;}
 		else if (T_X > 203 && T_X < 233)
-			{GraphicID = 0; GraphicX = 141; GraphicY = 205; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_i;}
+			{GraphicID = 0; GraphicX = 141; GraphicY = 205; return (KeyboardState == STATE_SYMBOL)?KBD_backslash:KBD_i;}
 		else if (T_X > 232 && T_X < 262)
-			{GraphicID = 0; GraphicX = 141; GraphicY = 234; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_o;}
+			{GraphicID = 0; GraphicX = 141; GraphicY = 234; return (KeyboardState == STATE_SYMBOL)?KBD_leftbracket:KBD_o;}
 		else if (T_X > 261 && T_X < 291)
-			{GraphicID = 0; GraphicX = 141; GraphicY = 263; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_p;}
+			{GraphicID = 0; GraphicX = 141; GraphicY = 263; return (KeyboardState == STATE_SYMBOL)?KBD_rightbracket:KBD_p;}
 		else if (T_X > 290 && T_X < 319)
 			{GraphicID = 6; GraphicX = 141; GraphicY = 292; return KBD_enter;}
 		else
@@ -385,23 +588,23 @@ KBD_KEYS TouchKey(s16 T_X, s16 T_Y)
 		if (T_X > 1 && T_X < 16)
 			{GraphicID = 9; GraphicX = 108; GraphicY = 2; return KBD_tab;}
 		else if (T_X > 15 && T_X < 45)
-			{GraphicID = 0; GraphicX = 108; GraphicY = 17; return (KeyboardState == STATE_SYMBOL)?KBD_comma:KBD_a;}
+			{GraphicID = 0; GraphicX = 108; GraphicY = 17; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_a;}
 		else if (T_X > 44 && T_X < 74)
 			{GraphicID = 0; GraphicX = 108; GraphicY = 46; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_s;}
 		else if (T_X > 73 && T_X < 103)
-			{GraphicID = 0; GraphicX = 108; GraphicY = 75; return (KeyboardState == STATE_SYMBOL)?KBD_backslash:KBD_d;}
+			{GraphicID = 0; GraphicX = 108; GraphicY = 75; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_d;}
 		else if (T_X > 102 && T_X < 132)
-			{GraphicID = 0; GraphicX = 108; GraphicY = 104; return (KeyboardState == STATE_SYMBOL)?KBD_slash:KBD_f;}
+			{GraphicID = 0; GraphicX = 108; GraphicY = 104; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_f;}
 		else if (T_X > 131 && T_X < 161)
 			{GraphicID = 0; GraphicX = 108; GraphicY = 133; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_g;}
 		else if (T_X > 160 && T_X < 190)
-			{GraphicID = 0; GraphicX = 108; GraphicY = 162; return (KeyboardState == STATE_SYMBOL)?KBD_semicolon:KBD_h;}
+			{GraphicID = 0; GraphicX = 108; GraphicY = 162; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_h;}
 		else if (T_X > 189 && T_X < 219)
-			{GraphicID = 0; GraphicX = 108; GraphicY = 191; return (KeyboardState == STATE_SYMBOL)?KBD_equals:KBD_j;}
+			{GraphicID = 0; GraphicX = 108; GraphicY = 191; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_j;}
 		else if (T_X > 218 && T_X < 248)
-			{GraphicID = 0; GraphicX = 108; GraphicY = 220; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_k;}
+			{GraphicID = 0; GraphicX = 108; GraphicY = 220; return (KeyboardState == STATE_SYMBOL)?KBD_semicolon:KBD_k;}
 		else if (T_X > 247 && T_X < 277)
-			{GraphicID = 0; GraphicX = 108; GraphicY = 249; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_l;}
+			{GraphicID = 0; GraphicX = 108; GraphicY = 249; return (KeyboardState == STATE_SYMBOL)?KBD_quote:KBD_l;}
 		else if (T_X > 276 && T_X < 319)
 			{GraphicID = 7; GraphicX = 108; GraphicY = 278; return KBD_enter;}
 		else
@@ -420,11 +623,11 @@ KBD_KEYS TouchKey(s16 T_X, s16 T_Y)
 		else if (T_X > 123 && T_X < 153)
 			{GraphicID = 0; GraphicX = 75; GraphicY = 125; return (KeyboardState == STATE_SYMBOL)?KBD_NONE:KBD_v;}
 		else if (T_X > 152 && T_X < 182)
-			{GraphicID = 0; GraphicX = 75; GraphicY = 154; return (KeyboardState == STATE_SYMBOL)?KBD_period:KBD_b;}
+			{GraphicID = 0; GraphicX = 75; GraphicY = 154; return (KeyboardState == STATE_SYMBOL)?KBD_comma:KBD_b;}
 		else if (T_X > 181 && T_X < 211)
-			{GraphicID = 0; GraphicX = 75; GraphicY = 183; return (KeyboardState == STATE_SYMBOL)?KBD_leftbracket:KBD_n;}
+			{GraphicID = 0; GraphicX = 75; GraphicY = 183; return (KeyboardState == STATE_SYMBOL)?KBD_period:KBD_n;}
 		else if (T_X > 210 && T_X < 240)
-			{GraphicID = 0; GraphicX = 75; GraphicY = 212; return (KeyboardState == STATE_SYMBOL)?KBD_rightbracket:KBD_m;}
+			{GraphicID = 0; GraphicX = 75; GraphicY = 212; return (KeyboardState == STATE_SYMBOL)?KBD_slash:KBD_m;}
 		else if (T_X > 239 && T_X < 319)
 			{GraphicID = 4; GraphicX = 75; GraphicY = 241; return KBD_rightshift;}
 		else
@@ -441,7 +644,13 @@ KBD_KEYS TouchKey(s16 T_X, s16 T_Y)
 			return KBD_NONE;
 		}
 		else if (T_X > 44 && T_X < 89)
+		{
+			if (KeyboardState == STATE_NUMBER)
+				KeyboardState = STATE_LOWER;
+			else
+				KeyboardState = STATE_NUMBER;
 			return KBD_NONE;
+		}
 		else if (T_X > 88 && T_X < 232)
 			{GraphicID = 8; GraphicX = 42; GraphicY = 90; return KBD_space;}
 		else if (T_X > 231 && T_X < 276)
@@ -457,28 +666,52 @@ KBD_KEYS TouchKey(s16 T_X, s16 T_Y)
 
 }
 
-void SetMod(u8 Key)
+void SetMod(u8 Key, bool reset)
 {
-	if (Key == KBD_rightshift)
-		CurrentMode.isShift = !CurrentMode.isShift;
-	else if (Key == KBD_capslock)
-		CurrentMode.isCaps = !CurrentMode.isCaps;
-	else if (Key == KBD_rightalt)
-		CurrentMode.isAlt = !CurrentMode.isAlt;
-	else if (Key == KBD_rightctrl)
-		CurrentMode.isCtrl = !CurrentMode.isCtrl;
+	if (!reset)
+	{
+		if (Key == KBD_rightshift)
+			CurrentMode.isShift = !CurrentMode.isShift;
+		else if (Key == KBD_capslock)
+			CurrentMode.isCaps = !CurrentMode.isCaps;
+		else if (Key == KBD_rightalt)
+			CurrentMode.isAlt = !CurrentMode.isAlt;
+		else if (Key == KBD_rightctrl)
+			CurrentMode.isCtrl = !CurrentMode.isCtrl;
 
-	if (CurrentMode.isShift && Key != KBD_NONE && Key != KBD_rightshift && Key != KBD_rightalt && Key != KBD_rightctrl)
-	{
-		CurrentMode.isShift = false;
+		if (CurrentMode.isShift && Key != KBD_NONE && Key != KBD_rightshift && Key != KBD_rightalt && Key != KBD_rightctrl)
+		{
+			CurrentMode.isShift = false;
+		}
+		if (CurrentMode.isAlt && Key != KBD_NONE && Key != KBD_rightshift && Key != KBD_rightalt && Key != KBD_rightctrl)
+		{
+			CurrentMode.isAlt   = false;
+		}
+		if (CurrentMode.isCtrl && Key != KBD_NONE && Key != KBD_rightshift && Key != KBD_rightalt && Key != KBD_rightctrl)
+		{
+			CurrentMode.isCtrl  = false;
+		}
 	}
-	if (CurrentMode.isAlt && Key != KBD_NONE && Key != KBD_rightshift && Key != KBD_rightalt && Key != KBD_rightctrl)
+	else
 	{
+		if (CurrentMode.isAltHeld)
+			KEYBOARD_AddKey(KBD_rightalt,false);
+		if (CurrentMode.isCtrlHeld)
+			KEYBOARD_AddKey(KBD_rightctrl,false);
+		if (CurrentMode.isShiftHeld)
+			KEYBOARD_AddKey(KBD_rightshift,false);
+		if (CurrentMode.isCapsHeld)
+			KEYBOARD_AddKey(KBD_capslock,false);
+
+		CurrentMode.isAltHeld   = false;
+		CurrentMode.isCtrlHeld  = false;
+		CurrentMode.isShiftHeld = false;
+		CurrentMode.isCapsHeld  = false;
+
 		CurrentMode.isAlt   = false;
-	}
-	if (CurrentMode.isCtrl && Key != KBD_NONE && Key != KBD_rightshift && Key != KBD_rightalt && Key != KBD_rightctrl)
-	{
 		CurrentMode.isCtrl  = false;
+		CurrentMode.isShift = false;
+		CurrentMode.isCaps  = false;
 	}
 }
 
@@ -487,11 +720,15 @@ bool SetKey(KBD_KEYS key, bool pressed, bool kHeld)
 	if (pressed && !kHeld)
 	{
 		kHeld = true;
+		if (CurrentMode.isShift)
+			KEYBOARD_AddKey(KBD_rightshift,true);
 		KEYBOARD_AddKey(key,true);
 	}
 	else if (!pressed && kHeld)
 	{
 		kHeld = false;
+		if (CurrentMode.isShift)
+			KEYBOARD_AddKey(KBD_rightshift,false);
 		KEYBOARD_AddKey(key,false);
 	}
 
@@ -537,6 +774,7 @@ void touch_event()
 		{
 			if ( CurrentMode.idle_timestamp == 0 )
 			{
+				MAPPER_LoadBinds();
 				isInit = true;
 				CurrentMode.idle_timestamp  = svcGetSystemTick();
 				CurrentMode.shouldCheckIdle = true;
@@ -682,7 +920,7 @@ void touch_event()
 					CurrentMode.shouldCheckMenu   = false;
 					CurrentMode.active_mode       = MODE_IDLE;
 					gfxDrawScreen(KeyboardState, T_X, T_Y, 0);
-					ctr_bottom_gfx.gfx_drawn      = true;
+//					ctr_bottom_gfx.gfx_drawn      = true;
 				}
 			}
 			else if ( CurrentMode.active_mode == MODE_MOUSE )
@@ -804,18 +1042,105 @@ void touch_event()
 			kbdHeld = true;
 			prevHeld = TouchKey(touch.px,touch.py);
 			if (prevHeld != KBD_NONE)
+			{
+				if (CurrentMode.isShift)
+				{
+					CurrentMode.isShiftHeld = true;
+					KEYBOARD_AddKey(KBD_rightshift,true);
+				}
 				KEYBOARD_AddKey(prevHeld ,true);
+			}
 
 			gfxDrawScreen(STATE_LOWER,touch.px,touch.py,prevHeld);
-			SetMod(prevHeld);
+			SetMod(prevHeld,false);
 		}
 		else if ((touch.px==0 && touch.py==0) && kbdHeld )
 		{
 			kbdHeld = false;
 			if (prevHeld != KBD_NONE)
+			{
+				if (CurrentMode.isShiftHeld)
+				{
+					CurrentMode.isShiftHeld = false;
+					KEYBOARD_AddKey(KBD_rightshift,false);
+				}
 				KEYBOARD_AddKey(prevHeld ,false);
+			}
 			gfxDrawScreen(STATE_LOWER,touch.px,touch.py,prevHeld);
 		}
+	}
+	if ( CurrentMode.active_mode == MODE_MAPPER )
+	{
+		if ((touch.px==0 && touch.py==0) && KeyHeld )
+		{
+			KeyHeld = false;
+			return;
+		}
+		else if ((touch.px==0 && touch.py==0) && !KeyHeld )
+		{
+			return;
+		}
+		else if (!KeyHeld)
+		{
+			KeyHeld = true;
+			if (T_X > 5 && T_X < 92)
+			{
+				if (T_Y > 11 && T_Y < 27)
+					MAPPER_SetBinds(0);
+				else if (T_Y > 29 && T_Y < 45)
+					MAPPER_SetBinds(1);
+				else if (T_Y > 47 && T_Y < 63)
+					MAPPER_SetBinds(2);
+				else if (T_Y > 65 && T_Y < 81)
+					MAPPER_SetBinds(3);
+				else if (T_Y > 83 && T_Y < 99)
+					MAPPER_SetBinds(4);
+				else if (T_Y > 101 && T_Y < 117)
+					MAPPER_SetBinds(5);
+				else if (T_Y > 119 && T_Y < 135)
+					MAPPER_SetBinds(6);
+				else if (T_Y > 137 && T_Y < 153)
+					MAPPER_SetBinds(7);
+				else if (T_Y > 155 && T_Y < 171)
+					MAPPER_SetBinds(8);
+				else if (T_Y > 173 && T_Y < 189)
+					MAPPER_SetBinds(9);
+			}
+			else if (T_X > 227 && T_X < 314)
+			{
+				if (T_Y > 11 && T_Y < 27)
+					MAPPER_SetBinds(10);
+				else if (T_Y > 29 && T_Y < 45)
+					MAPPER_SetBinds(11);
+				else if (T_Y > 47 && T_Y < 63)
+					MAPPER_SetBinds(12);
+				else if (T_Y > 65 && T_Y < 81)
+					MAPPER_SetBinds(13);
+				else if (T_Y > 83 && T_Y < 99)
+					MAPPER_SetBinds(14);
+				else if (T_Y > 101 && T_Y < 117)
+					MAPPER_SetBinds(15);
+				else if (T_Y > 119 && T_Y < 135)
+					MAPPER_SetBinds(16);
+				else if (T_Y > 137 && T_Y < 153)
+					MAPPER_SetBinds(17);
+				else if (T_Y > 173 && T_Y < 189)
+				/* load / reset button? */
+					MAPPER_LoadBinds();
+			}
+			/*save button */
+			else if (T_X > 120 && T_X < 199)
+			{
+				if (T_Y > 168 && T_Y < 191)
+				{
+					gfxDrawScreen(0,0,0,255);
+					MAPPER_SaveBinds();
+					KeyHeld = true;
+				}
+			}
+		}
+
+		return;
 	}
 	if ( CurrentMode.active_mode == MODE_SETTING )
 	{
@@ -855,23 +1180,14 @@ void touch_event()
 
 void button_event()
 {
+	int i;
+
 	u32 kDown = hidKeysHeld();
-
-	KEY_PRESSED_UP     = SetKey( KBD_up        , (kDown & KEY_UP)     , KEY_PRESSED_UP     );
-	KEY_PRESSED_RIGHT  = SetKey( KBD_right     , (kDown & KEY_RIGHT)  , KEY_PRESSED_RIGHT  );
-	KEY_PRESSED_DOWN   = SetKey( KBD_down      , (kDown & KEY_DOWN)   , KEY_PRESSED_DOWN   );
-	KEY_PRESSED_LEFT   = SetKey( KBD_left      , (kDown & KEY_LEFT)   , KEY_PRESSED_LEFT   );
-	KEY_PRESSED_A      = SetKey( KBD_up        , (kDown & KEY_A)      , KEY_PRESSED_A      );
-	KEY_PRESSED_B      = SetKey( KBD_space     , (kDown & KEY_B)      , KEY_PRESSED_B      );
-	KEY_PRESSED_X      = SetKey( KBD_rightctrl , (kDown & KEY_X)      , KEY_PRESSED_X      );
-	KEY_PRESSED_Y      = SetKey( KBD_rightalt  , (kDown & KEY_Y)      , KEY_PRESSED_Y      );
-	KEY_PRESSED_L      = SetKey( KBD_up        , (kDown & KEY_L)      , KEY_PRESSED_L      );
-	KEY_PRESSED_R      = SetKey( KBD_right     , (kDown & KEY_R)      , KEY_PRESSED_R      );
-	KEY_PRESSED_SELECT = SetKey( KBD_esc       , (kDown & KEY_SELECT) , KEY_PRESSED_SELECT );
-	KEY_PRESSED_START  = SetKey( KBD_enter     , (kDown & KEY_START)  , KEY_PRESSED_START  );
-	KEY_PRESSED_ZL     = SetKey( KBD_rightctrl , (kDown & KEY_ZL)     , KEY_PRESSED_ZL     );
-	KEY_PRESSED_ZR     = SetKey( KBD_f12       , (kDown & KEY_ZR)     , KEY_PRESSED_ZR     );
-
+	for(i = 0; i < 18; ++i)
+	{
+		if(ctr_controller_map[i].map_id != KBD_NONE)
+			ctr_controller[i].isPressed = SetKey( ctr_controller_map[i].map_id, (kDown & ctr_controller[i].btn_id), ctr_controller[i].isPressed);
+	}
 	return;
 }
 
