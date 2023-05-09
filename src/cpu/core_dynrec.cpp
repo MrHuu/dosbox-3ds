@@ -141,7 +141,8 @@ static struct {
 #define X86_64		0x02
 #define MIPSEL		0x03
 #define ARMV4LE		0x04
-#define ARMV7LE		0x05
+#define ARMV6K		0x05
+#define ARMV7LE		0x06
 #define ARMV8LE		0x07
 
 #if C_TARGETCPU == X86_64
