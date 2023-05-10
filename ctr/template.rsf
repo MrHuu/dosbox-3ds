@@ -15,7 +15,7 @@ Option:
   UseOnSD                 : true # true if App is to be installed to SD
   FreeProductCode         : true # Removes limitations on ProductCode
   MediaFootPadding        : false # If true CCI files are created with padding
-  EnableCrypt             : $(APP_ENCRYPTED) # Enables encryption for NCCH and CIA
+  EnableCrypt             : false # Enables encryption for NCCH and CIA
   EnableCompress          : false # Compresses where applicable (currently only exefs:/.code)
   
 AccessControlInfo:
@@ -79,7 +79,7 @@ AccessControlInfo:
   SystemModeExt                 : $(APP_SYSTEM_MODE_EXT) # Legacy(Default)/124MB/178MB  Legacy:Use Old3DS SystemMode
   CpuSpeed                      : 804MHz # 256MHz(Default)/804MHz
   EnableL2Cache                 : true # false(default)/true
-  CanAccessCore2                : true 
+  CanAccessCore2                : true
 
   # Virtual Address Mappings
   IORegisterMapping:

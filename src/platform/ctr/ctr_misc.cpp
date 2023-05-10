@@ -11,13 +11,13 @@ static char tmp[512];
 char * dirname(char * file)
 {
 	if(!file || file[0] == 0)
-		return ".";
+		return (char*)".";
 
 	char * sep = strrchr(file, '/');
 	if (sep == NULL)
 		sep = strrchr(file, '\\');
 	if (sep == NULL)
-		return ".";
+		return (char*)".";
 
 	int len = (int)(sep - file);
 	safe_strncpy(tmp, file, len+1);
@@ -30,10 +30,7 @@ int access(const char *path, int amode)
 	if (folderExists) return 0;
 	else return ENOENT;
 }
-//int rmdir(const char *path)
-//{
-//	return remove(path);
-//}
+
 int execlp(const char *file, const char *arg, ...)
 {
 	return -1;

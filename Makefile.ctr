@@ -24,26 +24,22 @@ include $(DEVKITARM)/3ds_rules
 #   If set to $(BUILD), it will statically link in the converted
 #   files as if they were data files.
 #
-# NO_SMDH: if set to anything, no SMDH file is generated.
 # ROMFS is the directory which contains the RomFS, relative to the Makefile (Optional)
 # APP_TITLE is the name of the app stored in the SMDH file (Optional)
 # APP_DESCRIPTION is the description of the app stored in the SMDH file (Optional)
 # APP_AUTHOR is the author of the app stored in the SMDH file (Optional)
-# ICON is the filename of the icon (.png), relative to the project folder.
-#   If not set, it attempts to use one of the following (in this order):
-#     - <Project name>.png
-#     - icon.png
-#     - <libctru folder>/default_icon.png
 #---------------------------------------------------------------------------------
 
 TARGET      := dosbox-3ds
 BUILD       := build
-SOURCES     := src src/cpu src/dos src/fpu src/hardware src/hardware/mame src/hardware/serialport src/ints src/libs src/misc src/gui src/shell src/platform/ctr
+SOURCES     := src src/cpu src/dos src/fpu src/hardware src/hardware/mame \
+               src/hardware/serialport src/ints src/libs src/misc src/gui \
+               src/shell src/platform/ctr src/libs/sdl_net
 DATA        := data
-INCLUDES    := include src/platform/ctr
+INCLUDES    := include src/platform/ctr src/libs/sdl_net
 GRAPHICS    := gfx
 GFXBUILD    := $(BUILD)
-#ROMFS       := res/ctr/romfs
+#ROMFS       := ctr/romfs
 #GFXBUILD    := $(ROMFS)/gfx
 
 APP_TITLE           := DOSBox
@@ -57,57 +53,66 @@ APP_VERSION_MINOR   := 0
 APP_VERSION_MICRO   := 2
 
 APP_RSF             := $(TOPDIR)/ctr/template.rsf
-APP_LOGO            := $(TOPDIR)/ctr/hb_logo.bin
 APP_ICON            := $(TOPDIR)/ctr/icon.png
 
 APP_BANNER_IMAGE    := $(TOPDIR)/ctr/banner.png
 APP_BANNER_AUDIO    := $(TOPDIR)/ctr/audio_silent.wav
 
-GFX_PNG             := $(TOPDIR)/src/platform/ctr/include/font.png  \
-                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_low.png     \
-                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_up.png      \
-                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_sym.png     \
-                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_sym_alt.png \
-                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_num.png     \
-                       $(TOPDIR)/ctr/gfx/ctr_bottom_mouse.png       \
-                       $(TOPDIR)/ctr/gfx/ctr_bottom_mapper.png      \
-                       $(TOPDIR)/ctr/gfx/ctr_bottom_setting.png     \
-                       $(TOPDIR)/ctr/gfx/ctr_bottom_idle.png        \
-                       $(TOPDIR)/ctr/gfx/btn_save.png               \
-                       $(TOPDIR)/ctr/gfx/btn_mapper.png             \
-                       $(TOPDIR)/ctr/gfx/kbd/key_key.png            \
-                       $(TOPDIR)/ctr/gfx/kbd/key_fkey.png           \
-                       $(TOPDIR)/ctr/gfx/kbd/key_alt.png            \
-                       $(TOPDIR)/ctr/gfx/kbd/key_ctrl.png           \
-                       $(TOPDIR)/ctr/gfx/kbd/key_enter_top.png      \
-                       $(TOPDIR)/ctr/gfx/kbd/key_enter_bot.png      \
-                       $(TOPDIR)/ctr/gfx/kbd/key_shift.png          \
-                       $(TOPDIR)/ctr/gfx/kbd/key_caps.png           \
-                       $(TOPDIR)/ctr/gfx/kbd/key_space.png          \
+GFX_PNG             := $(TOPDIR)/src/platform/ctr/include/font.png                 \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_low.png                    \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_up.png                     \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_sym.png                    \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_sym_alt.png                \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_kbd_num.png                    \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_mouse.png                      \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_mapper.png                     \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_mapper_joy.png                 \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_system.png                     \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_idle.png                       \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_disable.png                    \
+                       $(TOPDIR)/ctr/gfx/ctr_bottom_load.png                       \
+                       $(TOPDIR)/ctr/gfx/btn_save.png                              \
+                       $(TOPDIR)/ctr/gfx/btn_mapper.png                            \
+                       $(TOPDIR)/ctr/gfx/kbd/key_key.png                           \
+                       $(TOPDIR)/ctr/gfx/kbd/key_fkey.png                          \
+                       $(TOPDIR)/ctr/gfx/kbd/key_alt.png                           \
+                       $(TOPDIR)/ctr/gfx/kbd/key_lalt.png                          \
+                       $(TOPDIR)/ctr/gfx/kbd/key_ralt.png                          \
+                       $(TOPDIR)/ctr/gfx/kbd/key_ctrl.png                          \
+                       $(TOPDIR)/ctr/gfx/kbd/key_lctrl.png                         \
+                       $(TOPDIR)/ctr/gfx/kbd/key_rctrl.png                         \
+                       $(TOPDIR)/ctr/gfx/kbd/key_enter_top.png                     \
+                       $(TOPDIR)/ctr/gfx/kbd/key_enter_bot.png                     \
+                       $(TOPDIR)/ctr/gfx/kbd/key_shift.png                         \
+                       $(TOPDIR)/ctr/gfx/kbd/key_lshift.png                        \
+                       $(TOPDIR)/ctr/gfx/kbd/key_rshift.png                        \
+                       $(TOPDIR)/ctr/gfx/kbd/key_caps.png                          \
+                       $(TOPDIR)/ctr/gfx/kbd/key_space.png                         \
                        $(TOPDIR)/ctr/gfx/kbd/key_tab.png
 
 GFX_HDR := $(GFX_PNG:.png=_bgr.h)
 GFX_BIN := $(GFX_PNG:.png=.bgr.o)
 
+FILTERLIST  := sdlmain.cpp
+
 #---------------------------------------------------------------------------------
 # options for code generation
 #---------------------------------------------------------------------------------
-ARCH	:=	-march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
+ARCH        := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
-CFLAGS	:=	-g -Wall -O3 -mword-relocations \
-			-fomit-frame-pointer -ffunction-sections \
-			$(ARCH)
+CFLAGS      := -g -Wall -O3 -mword-relocations \
+               -fomit-frame-pointer -ffunction-sections \
+               $(ARCH)
 
-CFLAGS	+=	$(INCLUDE) -D__3DS__
+CFLAGS      += $(INCLUDE) -D__3DS__
 
-CXXFLAGS	:= $(CFLAGS) -std=gnu++11 -fpermissive -fomit-frame-pointer \
-			-Wno-unused-parameter -Wno-strict-aliasing
-#-fno-rtti -fno-exceptions
+CXXFLAGS    := $(CFLAGS) -std=gnu++11 -fpermissive \
+               -Wno-unused-parameter -Wno-strict-aliasing
 
-ASFLAGS	:=	-g $(ARCH)
-LDFLAGS	=	-specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
+ASFLAGS     := -g $(ARCH)
+LDFLAGS      = -specs=3dsx.specs -g $(ARCH) -Wl,-Map,$(notdir $*.map)
 
-LIBS	:=  -lSDL_mixer -lSDL_gfx -lSDL_image -lSDL -lpng -ljpeg -lz -lcitro3d -lctru -lm -lmikmod
+LIBS        := -lSDL -lcitro3d -lctru -lm
 
 #---------------------------------------------------------------------------------
 # list of directories containing libraries, this must be the top level containing
@@ -122,21 +127,22 @@ LIBDIRS	:= $(CTRULIB) $(PORTLIBS)
 ifneq ($(BUILD),$(notdir $(CURDIR)))
 #---------------------------------------------------------------------------------
 
-export OUTPUT	:=	$(CURDIR)/$(TARGET)
-export TOPDIR	:=	$(CURDIR)
+export OUTPUT    := $(CURDIR)/$(TARGET)
+export TOPDIR    := $(CURDIR)
 
-export VPATH	:=	$(foreach dir,$(SOURCES),$(CURDIR)/$(dir)) \
-			$(foreach dir,$(GRAPHICS),$(CURDIR)/$(dir)) \
-			$(foreach dir,$(DATA),$(CURDIR)/$(dir))
+export VPATH     := $(foreach dir,$(SOURCES),$(CURDIR)/$(dir))  \
+                    $(foreach dir,$(GRAPHICS),$(CURDIR)/$(dir)) \
+                    $(foreach dir,$(DATA),$(CURDIR)/$(dir))
 
-export DEPSDIR	:=	$(CURDIR)/$(BUILD)
+export DEPSDIR   :=	$(CURDIR)/$(BUILD)
 
-CFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
-CPPFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
-SFILES		:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
-PICAFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.v.pica)))
-SHLISTFILES	:=	$(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.shlist)))
+CFILES      := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.c)))
+CPPFILES    := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.cpp)))
+SFILES      := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.s)))
+PICAFILES   := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.v.pica)))
+SHLISTFILES := $(foreach dir,$(SOURCES),$(notdir $(wildcard $(dir)/*.shlist)))
 
+CPPFILES    := $(filter-out $(FILTERLIST), $(CPPFILES))
 #---------------------------------------------------------------------------------
 # use CXX for linking C++ projects, CC for standard C
 #---------------------------------------------------------------------------------
@@ -182,24 +188,7 @@ export INCLUDE	:=	$(foreach dir,$(INCLUDES),-I$(CURDIR)/$(dir)) \
 
 export LIBPATHS	:=	$(foreach dir,$(LIBDIRS),-L$(dir)/lib) -L$(DEVKITPRO)/libctru/include -L$(PORTLIBS)/lib
 
-#export _3DSXDEPS	:=	$(if $(NO_SMDH),,$(OUTPUT).smdh)
-
-ifeq ($(strip $(ICON)),)
-	icons := $(wildcard *.png)
-	ifneq (,$(findstring $(TARGET).png,$(icons)))
-		export APP_ICON := $(TOPDIR)/$(TARGET).png
-	else
-		ifneq (,$(findstring icon.png,$(icons)))
-			export APP_ICON := $(TOPDIR)/icon.png
-		endif
-	endif
-else
-	export APP_ICON := $(TOPDIR)/$(ICON)
-endif
-
-ifeq ($(strip $(NO_SMDH)),)
-	export _3DSXFLAGS += --smdh=$(TARGET).smdh
-endif
+export _3DSXFLAGS += --smdh=$(TARGET).smdh
 
 ifneq ($(ROMFS),)
 	export _3DSXFLAGS += --romfs=$(CURDIR)/$(ROMFS)
@@ -228,6 +217,9 @@ clean:
 	@echo clean ...
 	@rm -fr $(BUILD) $(TARGET).3dsx $(TARGET).cia $(TARGET).elf $(GFXBUILD) $(GFX_BIN) $(GFX_HDR)
 
+3dslink: all
+	@3dslink -r 10 -a 192.168.1.96 $(OUTPUT).3dsx
+
 #---------------------------------------------------------------------------------
 $(GFXBUILD)/%.t3x	$(BUILD)/%.h	:	%.t3s
 #---------------------------------------------------------------------------------
@@ -236,10 +228,10 @@ $(GFXBUILD)/%.t3x	$(BUILD)/%.h	:	%.t3s
 #---------------------------------------------------------------------------------
 else
 
-COMMON_MAKEROM_PARAMS		:= -rsf $(APP_RSF) -target t -exefslogo -elf $(OUTPUT).elf -icon $(TARGET).smdh \
--banner $(TARGET).bnr -DAPP_TITLE="$(APP_TITLE)" -DAPP_PRODUCT_CODE="$(APP_PRODUCT_CODE)" \
--DAPP_UNIQUE_ID="$(APP_UNIQUE_ID)" -DAPP_SYSTEM_MODE="64MB" -DAPP_SYSTEM_MODE_EXT="Legacy" \
--major "$(APP_VERSION_MAJOR)" -minor "$(APP_VERSION_MINOR)" -micro "$(APP_VERSION_MICRO)"
+COMMON_MAKEROM_PARAMS       := -rsf $(APP_RSF) -target t -exefslogo -elf $(OUTPUT).elf -icon $(TARGET).smdh \
+			-banner $(TARGET).bnr -DAPP_TITLE="$(APP_TITLE)" -DAPP_PRODUCT_CODE="$(APP_PRODUCT_CODE)"       \
+			-DAPP_UNIQUE_ID="$(APP_UNIQUE_ID)" -DAPP_SYSTEM_MODE="80MB" -DAPP_SYSTEM_MODE_EXT="124MB"       \
+			-major "$(APP_VERSION_MAJOR)" -minor "$(APP_VERSION_MINOR)" -micro "$(APP_VERSION_MICRO)"
 
 ifneq ($(APP_LOGO),)
 	APP_LOGO_ID             := Homebrew
@@ -256,11 +248,11 @@ ifneq ($(ROMFS),)
 endif
 
 ifeq ($(OS),Windows_NT)
-	MAKEROM		=	makerom.exe
-	BANNERTOOL	=	bannertool.exe
+	MAKEROM		= makerom.exe
+	BANNERTOOL	= bannertool.exe
 else
-	MAKEROM		=	$(TOOLDIR)/makerom
-	BANNERTOOL	=	$(TOOLDIR)/bannertool
+	MAKEROM      = $(TOOLDIR)/makerom
+	BANNERTOOL   = $(TOOLDIR)/bannertool
 endif
 
 #---------------------------------------------------------------------------------
@@ -268,7 +260,7 @@ endif
 #---------------------------------------------------------------------------------
 .PHONY : all
 
-all               : $(OUTPUT).3dsx
+all               : $(OUTPUT).3dsx $(OUTPUT).cia
 
 $(OUTPUT).3dsx    : $(OUTPUT).elf $(TARGET).smdh
 

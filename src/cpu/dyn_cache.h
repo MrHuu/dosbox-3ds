@@ -646,7 +646,6 @@ static void cache_init(bool enable) {
 #elif defined(__3DS__)
 			cache_code_start_ptr = (Bit8u*)memalign(4096, CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
 			_SetMemoryPermission(cache_code_start_ptr, CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP / 4096, 7);
-//			svcSleepThread(1000000000);
 #else
 			cache_code_start_ptr=(Bit8u*)malloc(CACHE_TOTAL+CACHE_MAXSIZE+PAGESIZE_TEMP-1+PAGESIZE_TEMP);
 #endif

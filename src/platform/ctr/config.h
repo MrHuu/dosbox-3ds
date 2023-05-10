@@ -16,10 +16,10 @@
 #define C_OPENGL 0
 
 /* Define to 1 to enable internal modem support, requires SDL_net */
-#define C_MODEM 0
+#define C_MODEM 1
 
 /* Define to 1 to enable IPX networking support, requires SDL_net */
-#define C_IPX 0
+#define C_IPX 1
 
 /* Enable some heavy debugging options */
 #define C_HEAVY_DEBUG 0
@@ -46,40 +46,35 @@
 #define C_UNALIGNED_MEMORY 0
 
 /* environ is defined */
-#define ENVIRON_INCLUDED 1
+#define ENVIRON_INCLUDED 0
 
 /* environ can be linked */
-#define ENVIRON_LINKED 1
+#define ENVIRON_LINKED 0
 
 /* Define to 1 if you want serial passthrough support. */
 #define C_DIRECTSERIAL 0
 
-//#define GCC_ATTRIBUTE(x) /* attribute not supported */
-//#define GCC_UNLIKELY(x) (x)
 #define GCC_ATTRIBUTE(x) __attribute__ ((x))
-#define GCC_UNLIKELY(x) __builtin_expect((x), 0)
-
-#define GCC_LIKELY(x) (x)
+#define GCC_UNLIKELY(x)  __builtin_expect((x), 0)
+#define GCC_LIKELY(x)    (x)
 
 #define INLINE inline
 #define DB_FASTCALL __fastcall
 
-
-typedef double            Real64;
-
 /* The internal types */
-typedef  unsigned char		Bit8u;
-typedef    signed char		Bit8s;
-typedef unsigned short		Bit16u;
-typedef   signed short		Bit16s;
-typedef  unsigned int		Bit32u;
-typedef    int				Bit32s;
-typedef unsigned long long	Bit64u;
-typedef   signed long long	Bit64s;
-typedef unsigned int		Bitu;
+typedef             double  Real64;
+
+typedef      unsigned char  Bit8u;
+typedef        signed char  Bit8s;
+typedef     unsigned short  Bit16u;
+typedef       signed short  Bit16s;
+typedef       unsigned int  Bit32u;
+typedef         signed int  Bit32s;
+typedef unsigned long long  Bit64u;
+typedef   signed long long  Bit64s;
+typedef       unsigned int  Bitu;
+typedef             Bit32s  Bits;
 
 #define sBit32t
 #define sBit32fs(a) sBit32t #a
-
-typedef Bit32s              Bits;
-#define sBitfs sBit32fs
+#define sBitfs      sBit32fs
