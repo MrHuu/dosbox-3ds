@@ -50,7 +50,7 @@ APP_PRODUCT_CODE    := CTR-P-DOSBOX
 APP_UNIQUE_ID       := 0xD0486
 APP_VERSION_MAJOR   := 0
 APP_VERSION_MINOR   := 0
-APP_VERSION_MICRO   := 2
+APP_VERSION_MICRO   := 4
 
 APP_RSF             := $(TOPDIR)/ctr/template.rsf
 APP_ICON            := $(TOPDIR)/ctr/icon.png
@@ -100,8 +100,12 @@ FILTERLIST  := sdlmain.cpp
 #---------------------------------------------------------------------------------
 ARCH        := -march=armv6k -mtune=mpcore -mfloat-abi=hard -mtp=soft
 
+#Idea to use funroll-all-loops, param max, and fomit-frame-pointer
+#Originally by vogons user 'Moe'. Post found by RetroGamer02.
 CFLAGS      := -g -Wall -O3 -mword-relocations \
                -fomit-frame-pointer -ffunction-sections \
+			   -funroll-all-loops --param max-unrolled-insns=60 \
+			   -fomit-frame-pointer \
                $(ARCH)
 
 CFLAGS      += $(INCLUDE) -D__3DS__
@@ -251,8 +255,8 @@ ifeq ($(OS),Windows_NT)
 	MAKEROM		= makerom.exe
 	BANNERTOOL	= bannertool.exe
 else
-	MAKEROM      = $(TOOLDIR)/makerom
-	BANNERTOOL   = $(TOOLDIR)/bannertool
+	MAKEROM      = /mnt/c/users/devin/documents/dosbox-3ds/makerom
+	BANNERTOOL   = /mnt/c/users/devin/documents/dosbox-3ds/bannertool
 endif
 
 #---------------------------------------------------------------------------------
