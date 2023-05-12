@@ -255,8 +255,8 @@ ifeq ($(OS),Windows_NT)
 	MAKEROM		= makerom.exe
 	BANNERTOOL	= bannertool.exe
 else
-	MAKEROM      = /mnt/c/users/devin/documents/dosbox-3ds/makerom
-	BANNERTOOL   = /mnt/c/users/devin/documents/dosbox-3ds/bannertool
+	MAKEROM      = $(TOOLDIR)/makerom
+	BANNERTOOL   = $(TOOLDIR)/bannertool
 endif
 
 #---------------------------------------------------------------------------------
