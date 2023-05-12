@@ -162,16 +162,18 @@ static struct {
 CacheBlockDynRec * LinkBlocks(BlockReturn ret) {
 	CacheBlockDynRec * block=NULL;
 	// the last instruction was a control flow modifying instruction
-	Bitu temp_ip=SegPhys(cs)+reg_eip;
+	uint32_t temp_ip=SegPhys(cs)+reg_eip;
 	CodePageHandlerDynRec * temp_handler=(CodePageHandlerDynRec *)get_tlb_readhandler(temp_ip);
 	if (temp_handler->flags & (cpu.code.big ? PFLAG_HASCODE32:PFLAG_HASCODE16)) {
 		// see if the target is an already translated block
 		block=temp_handler->FindCacheBlock(temp_ip & 4095);
-		if (block) { // found it, link the current block to
-			cache.block.running->LinkTo(ret==BR_Link2,block);
-		}
+		if (!block) return NULL;
+
+		// found it, link the current block to
+		cache.block.running->LinkTo(ret==BR_Link2,block);
+		return block;
 	}
-	return block;
+	return NULL;
 }
 
 /*
@@ -217,12 +219,13 @@ Bits CPU_Core_Dynrec_Run(void) {
 				// let the normal core handle this instruction to avoid zero-sized blocks
 				Bitu old_cycles=CPU_Cycles;
 				CPU_Cycles=1;
+				CPU_CycleLeft+=old_cycles;
 				Bits nc_retcode=CPU_Core_Normal_Run();
 				if (!nc_retcode) {
 					CPU_Cycles=old_cycles-1;
+					CPU_CycleLeft-=old_cycles;
 					continue;
 				}
-				CPU_CycleLeft+=old_cycles;
 				return nc_retcode;
 			}
 		}
