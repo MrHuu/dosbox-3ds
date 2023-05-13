@@ -19,6 +19,9 @@
 #if defined(__3DS__)
 #include <3ds.h>
 #include <malloc.h>
+
+uint32_t CACHE_TOTAL;
+uint32_t CACHE_BLOCKS;
 #endif
 
 class CodePageHandlerDynRec;	// forward

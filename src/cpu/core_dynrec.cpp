@@ -57,9 +57,9 @@
 #include "pic.h"
 
 #define CACHE_MAXSIZE	(4096*2)
-#define CACHE_TOTAL		(1024*1024*8)
+
 #define CACHE_PAGES		(512)
-#define CACHE_BLOCKS	(128*1024)
+
 #define CACHE_ALIGN		(16)
 #define DYN_HASH_SHIFT	(4)
 #define DYN_PAGE_HASH	(4096>>DYN_HASH_SHIFT)
@@ -330,6 +330,16 @@ Bits CPU_Core_Dynrec_Trap_Run(void) {
 }
 
 void CPU_Core_Dynrec_Init(void) {
+	bool isN3DS;
+	APT_CheckNew3DS(&isN3DS);
+	if (isN3DS)
+	{
+		CACHE_TOTAL	= (1024*1024*8);
+		CACHE_BLOCKS = (128*1024);
+	} else {
+		CACHE_TOTAL = (512*512*2);
+		CACHE_BLOCKS = (40*1024);
+	}
 }
 
 void CPU_Core_Dynrec_Cache_Init(bool enable_cache) {
