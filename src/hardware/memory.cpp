@@ -26,9 +26,14 @@
 
 #include <string.h>
 
+#ifdef __3DS__
+#include <3ds.h>
+#endif
+
 #define PAGES_IN_BLOCK	((1024*1024)/MEM_PAGE_SIZE)
 #define SAFE_MEMORY	32
 #define MAX_MEMORY	64
+#define MAX_MEMORY_O3DS	5
 #define MAX_PAGE_ENTRIES (MAX_MEMORY*1024*1024/4096)
 #define LFB_PAGES	512
 #define MAX_LINKS	((MAX_MEMORY*1024/4)+4096)		//Hopefully enough
@@ -548,17 +553,40 @@ public:
 	
 		/* Setup the Physical Page Links */
 		Bitu memsize=section->Get_int("memsize");
-	
-		if (memsize < 1) memsize = 1;
-		/* max 63 to solve problems with certain xms handlers */
-		if (memsize > MAX_MEMORY-1) {
-			LOG_MSG("Maximum memory size is %d MB",MAX_MEMORY - 1);
-			memsize = MAX_MEMORY-1;
+
+		#ifdef __3DS__
+		{
+			bool isN3DS;
+			APT_CheckNew3DS(&isN3DS);
+		
+			if (memsize < 1) memsize = 1;
+			/* max 63 to solve problems with certain xms handlers */
+			if (isN3DS) {
+				if (memsize > MAX_MEMORY-1) {
+					E_Exit("Maximum New 3DS memory size is %d MB",MAX_MEMORY - 1);
+					memsize = MAX_MEMORY-1;
+				}
+			} else {
+				if (memsize > MAX_MEMORY_O3DS-1) {
+					E_Exit("Maximum Old 3DS memory size is %d MB",MAX_MEMORY_O3DS - 1);
+					memsize = MAX_MEMORY_O3DS-1;
+				}
+			}
+
+			if (memsize > SAFE_MEMORY-1) {
+					LOG_MSG("Memory sizes above %d MB are NOT recommended.",SAFE_MEMORY - 1);
+					LOG_MSG("Stick with the default values unless you are absolutely certain.");
+			}
 		}
-		if (memsize > SAFE_MEMORY-1) {
-			LOG_MSG("Memory sizes above %d MB are NOT recommended.",SAFE_MEMORY - 1);
-			LOG_MSG("Stick with the default values unless you are absolutely certain.");
+		#else
+		{
+			if (memsize > MAX_MEMORY-1) {
+				LOG_MSG("Maximum memory size is %d MB",MAX_MEMORY - 1);
+				memsize = MAX_MEMORY-1;
+			}
 		}
+		#endif
+
 		MemBase = new(std::nothrow) Bit8u[memsize*1024*1024];
 		if (!MemBase) E_Exit("Can't allocate main memory of %" sBitfs(d) " MB",memsize);
 		/* Clear the memory, as new doesn't always give zeroed memory
