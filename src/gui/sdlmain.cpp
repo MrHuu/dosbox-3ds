@@ -1673,6 +1673,7 @@ void GFX_Stop() {
 void GFX_Start() {
 	sdl.active=true;
 	#ifdef CTR_GFXEND_THREADED
+		LightLock_Init(sdl.mutex);
 		sdl.kill_thread=false;
 		//I think Core 1 at 70% should be plenty even for New 3DS Stuff.
 		sdl.thread = threadCreate(GFX_EndUpdate_Thread, 0, 2 * 1024, 0x18, 1, true);
