@@ -108,7 +108,7 @@ CFLAGS      := -g -Wall -O3 -mword-relocations \
 			   -fomit-frame-pointer \
                $(ARCH)
 
-CFLAGS      += $(INCLUDE) -D__3DS__
+CFLAGS      += $(INCLUDE) -D__3DS__ -DCTR_GFXEND_THREADED
 
 CXXFLAGS    := $(CFLAGS) -std=gnu++11 -fpermissive \
                -Wno-unused-parameter -Wno-strict-aliasing

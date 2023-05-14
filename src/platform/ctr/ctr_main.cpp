@@ -450,6 +450,7 @@ void restart_program(std::vector<std::string> & parameters) {
 int main(int argc, char* argv[]) {
 
 	aptHook(&cookie, aptHookFunc, NULL);
+	APT_SetAppCpuTimeLimit(70);
 	osSetSpeedupEnable(true);
 
 	ctr_check_dsp();

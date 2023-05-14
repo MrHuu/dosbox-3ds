@@ -312,6 +312,14 @@ struct SDL_Block {
 	} mouse;
 	SDL_Rect updateRects[1024];
 	Bitu num_joysticks;
+
+#ifdef CTR_GFXEND_THREADED
+	#include <3ds.h>
+	LightLock *mutex;
+	Thread *thread;
+	volatile bool kill_thread;
+#endif
+
 #if defined (WIN32)
 	bool using_windib;
 	// Time when sdl regains focus (alt-tab) in windowed mode
@@ -722,8 +730,10 @@ static SDL_Surface * GFX_SetupSurfaceScaled(Bit32u sdl_flags, Bit32u bpp) {
 }
 
 void GFX_TearDown(void) {
-	if (sdl.updating)
-		GFX_EndUpdate( 0 );
+	#ifndef CTR_GFXEND_THREADED
+		if (sdl.updating)
+			GFX_EndUpdate( 0 );
+	#endif
 
 	if (sdl.blit.surface) {
 		SDL_FreeSurface(sdl.blit.surface);
@@ -1364,6 +1374,127 @@ bool GFX_StartUpdate(Bit8u * & pixels,Bitu & pitch) {
 	return false;
 }
 
+void GFX_EndUpdate_Thread() {
+	const Bit16u *changedLines = 0;
+
+	while (!sdl.kill_thread) {
+	#if C_DDRAW
+		int ret;
+	#endif
+		if (((sdl.desktop.type != SCREEN_OPENGL) || !RENDER_GetForceUpdate()) && !sdl.updating)
+			return;
+		bool actually_updating = sdl.updating;
+		sdl.updating=false;
+		switch (sdl.desktop.type) {
+		case SCREEN_SURFACE:
+			if (SDL_MUSTLOCK(sdl.surface)) {
+				if (sdl.blit.surface) {
+					SDL_UnlockSurface(sdl.blit.surface);
+					int Blit = SDL_BlitSurface( sdl.blit.surface, 0, sdl.surface, &sdl.clip );
+					LOG(LOG_MISC,LOG_WARN)("BlitSurface returned %d",Blit);
+				} else {
+					SDL_UnlockSurface(sdl.surface);
+				}
+				SDL_Flip(sdl.surface);
+			} else if (changedLines) {
+				Bitu y = 0, index = 0, rectCount = 0;
+				while (y < sdl.draw.height) {
+					if (!(index & 1)) {
+						y += changedLines[index];
+					} else {
+						SDL_Rect *rect = &sdl.updateRects[rectCount++];
+						rect->x = sdl.clip.x;
+						rect->y = sdl.clip.y + y;
+						rect->w = (Bit16u)sdl.draw.width;
+						rect->h = changedLines[index];
+	#if 0
+						if (rect->h + rect->y > sdl.surface->h) {
+							LOG_MSG("WTF %d +  %d  >%d",rect->h,rect->y,sdl.surface->h);
+						}
+	#endif
+						y += changedLines[index];
+					}
+					index++;
+				}
+				if (rectCount)
+					SDL_UpdateRects( sdl.surface, rectCount, sdl.updateRects );
+			}
+			break;
+	#if C_DDRAW
+		case SCREEN_SURFACE_DDRAW:
+			SDL_UnlockSurface(sdl.blit.surface);
+			ret=IDirectDrawSurface3_Blt(
+				sdl.surface->hwdata->dd_writebuf,&sdl.blit.rect_dest,
+				sdl.blit.surface->hwdata->dd_surface,&sdl.blit.rect_src,
+				DDBLT_WAIT, NULL);
+			switch (ret) {
+			case DD_OK:
+				break;
+			case DDERR_SURFACELOST:
+				IDirectDrawSurface3_Restore(sdl.blit.surface->hwdata->dd_surface);
+				IDirectDrawSurface3_Restore(sdl.surface->hwdata->dd_surface);
+				break;
+			default:
+				LOG_MSG("DDRAW: Failed to blit, error %X",ret);
+			}
+			SDL_Flip(sdl.surface);
+			break;
+	#endif
+		case SCREEN_OVERLAY:
+			SDL_UnlockYUVOverlay(sdl.overlay);
+			SDL_DisplayYUVOverlay(sdl.overlay,&sdl.clip);
+			break;
+	#if C_OPENGL
+		case SCREEN_OPENGL:
+			// Clear drawing area. Some drivers (on Linux) have more than 2 buffers and the screen might
+			// be dirty because of other programs.
+			if (!actually_updating) {
+				/* Don't really update; Just increase the frame counter.
+				* If we tried to update it may have not worked so well
+				* with VSync...
+				* (Think of 60Hz on the host with 70Hz on the client.)
+				*/
+				sdl.opengl.actual_frame_count++;
+				return;
+			}
+			glClearColor (0.0f, 0.0f, 0.0f, 1.0f);
+			glClear(GL_COLOR_BUFFER_BIT);
+			if (sdl.opengl.pixel_buffer_object) {
+				glUnmapBufferARB(GL_PIXEL_UNPACK_BUFFER_EXT);
+				glTexSubImage2D(GL_TEXTURE_2D, 0, 0, 0,
+						sdl.draw.width, sdl.draw.height, GL_BGRA_EXT,
+						GL_UNSIGNED_INT_8_8_8_8_REV, 0);
+				glBindBufferARB(GL_PIXEL_UNPACK_BUFFER_EXT, 0);
+			} else if (changedLines) {
+				Bitu y = 0, index = 0;
+				while (y < sdl.draw.height) {
+					if (!(index & 1)) {
+						y += changedLines[index];
+					} else {
+						Bit8u *pixels = (Bit8u *)sdl.opengl.framebuf + y * sdl.opengl.pitch;
+						Bitu height = changedLines[index];
+						glTexSubImage2D(GL_TEXTURE_2D, 0, 0, y,
+							sdl.draw.width, height, GL_BGRA_EXT,
+							GL_UNSIGNED_INT_8_8_8_8_REV, pixels );
+						y += height;
+					}
+					index++;
+				}
+			} else
+				return;
+
+			if (sdl.opengl.program_object) {
+				glUniform1i(sdl.opengl.ruby.frame_count, sdl.opengl.actual_frame_count++);
+				glDrawArrays(GL_TRIANGLES, 0, 3);
+			} else glCallList(sdl.opengl.displaylist);
+			SDL_GL_SwapBuffers();
+			break;
+	#endif
+		default:
+			break;
+		}
+	}
+}
 
 void GFX_EndUpdate( const Bit16u *changedLines ) {
 #if C_DDRAW
@@ -1485,6 +1616,9 @@ void GFX_EndUpdate( const Bit16u *changedLines ) {
 
 
 void GFX_SetPalette(Bitu start,Bitu count,GFX_PalEntry * entries) {
+	#ifdef CTR_GFXEND_THREADED
+		LightLock_Lock(sdl.mutex);
+	#endif
 	/* I should probably not change the GFX_PalEntry :) */
 	if (sdl.surface->flags & SDL_HWPALETTE) {
 		if (!SDL_SetPalette(sdl.surface,SDL_PHYSPAL,(SDL_Color *)entries,start,count)) {
@@ -1495,6 +1629,9 @@ void GFX_SetPalette(Bitu start,Bitu count,GFX_PalEntry * entries) {
 			E_Exit("SDL:Can't set palette");
 		}
 	}
+	#ifdef CTR_GFXEND_THREADED
+		LightLock_Unlock(sdl.mutex);
+	#endif
 }
 
 Bitu GFX_GetRGB(Bit8u red,Bit8u green,Bit8u blue) {
@@ -1522,13 +1659,24 @@ Bitu GFX_GetRGB(Bit8u red,Bit8u green,Bit8u blue) {
 }
 
 void GFX_Stop() {
+	#ifdef CTR_GFXEND_THREADED
+		LightLock_Lock(sdl.mutex);
+	#endif
 	if (sdl.updating)
 		GFX_EndUpdate( 0 );
 	sdl.active=false;
+	#ifdef CTR_GFXEND_THREADED
+		LightLock_Unlock(sdl.mutex);
+	#endif
 }
 
 void GFX_Start() {
 	sdl.active=true;
+	#ifdef CTR_GFXEND_THREADED
+		sdl.kill_thread=false;
+		//I think Core 1 at 70% should be plenty even for New 3DS Stuff.
+		sdl.thread = threadCreate(GFX_EndUpdate_Thread, 0, 2 * 1024, 0x18, 1, true);
+	#endif
 }
 
 static void GUI_ShutDown(Section * /*sec*/) {
@@ -1536,6 +1684,10 @@ static void GUI_ShutDown(Section * /*sec*/) {
 	if (sdl.draw.callback) (sdl.draw.callback)( GFX_CallBackStop );
 	if (sdl.mouse.locked) GFX_CaptureMouse();
 	if (sdl.desktop.fullscreen) GFX_SwitchFullScreen();
+
+	#ifdef CTR_GFXEND_THREADED
+		sdl.kill_thread=true;
+	#endif
 }
 
 
