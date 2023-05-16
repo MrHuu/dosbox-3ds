@@ -66,6 +66,7 @@
 #ifdef CTR_GFXEND_THREADED
 	LightLock mutex;
 	Thread thread;
+	volatile bool thread_started;
 	volatile bool kill_thread;
 #endif
 
@@ -255,12 +256,10 @@ bool GFX_StartUpdate(Bit8u * & pixels,Bitu & pitch) {
 }
 
 void GFX_EndUpdate_Thread() {
+	thread_started = true;
 	const Bit16u *changedLines = 0;
-	if (!kill_thread)
+	while (!kill_thread)
 	{
-		if (!RENDER_GetForceUpdate() && !sdl.updating)
-			return;
-
 		sdl.updating=false;
 
 		if (SDL_MUSTLOCK(sdl.surface)) {
@@ -390,8 +389,15 @@ void GFX_Start() {
 	#ifdef CTR_GFXEND_THREADED
 		LightLock_Init(&mutex);
 		kill_thread=false;
-		//I think Core 1 at 70% should be plenty even for New 3DS Stuff.
-		thread = threadCreate(GFX_EndUpdate_Thread, 0, 2 * 1024, 0x18, 1, true);
+
+		if (!RENDER_GetForceUpdate() && !sdl.updating)
+			return;
+
+		if (!thread_started)
+		{
+			//I think Core 1 at 70% should be plenty even for New 3DS Stuff.
+			thread = threadCreate(GFX_EndUpdate_Thread, 0, 2 * 1024, 0x18, 1, true);
+		}
 	#endif
 }
 
