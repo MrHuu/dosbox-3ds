@@ -33,7 +33,8 @@
 #define PAGES_IN_BLOCK	((1024*1024)/MEM_PAGE_SIZE)
 #define SAFE_MEMORY	32
 #define MAX_MEMORY	64
-#define MAX_MEMORY_O3DS	5
+#define MAX_MEMORY_O3DS_DYN	4
+#define MAX_MEMORY_O3DS_NOR	11
 #define MAX_PAGE_ENTRIES (MAX_MEMORY*1024*1024/4096)
 #define LFB_PAGES	512
 #define MAX_LINKS	((MAX_MEMORY*1024/4)+4096)		//Hopefully enough
@@ -424,8 +425,8 @@ bool MEM_A20_Enabled(void) {
 }
 
 void MEM_A20_Enable(bool enabled) {
-	Bitu phys_base=enabled ? (1024/4) : 0;
-	for (Bitu i=0;i<16;i++) PAGING_MapPage((1024/4)+i,phys_base+i);
+	Bitu phys_base=enabled ? (1024>>2) : 0;
+	for (Bitu i=0;i<16;i++) PAGING_MapPage((1024>>2)+i,phys_base+i);
 	memory.a20.enabled=enabled;
 }
 
@@ -554,6 +555,9 @@ public:
 		/* Setup the Physical Page Links */
 		Bitu memsize=section->Get_int("memsize");
 
+		//const char * core=section->Get_string("core");
+		std::string core(section->Get_string("core"));
+
 		#ifdef __3DS__
 		{
 			bool isN3DS;
@@ -567,9 +571,16 @@ public:
 					memsize = MAX_MEMORY-1;
 				}
 			} else {
-				if (memsize > MAX_MEMORY_O3DS-1) {
-					E_Exit("Maximum Old 3DS memory size is %d MB",MAX_MEMORY_O3DS - 1);
-					memsize = MAX_MEMORY_O3DS-1;
+				if (core == "dynamic") {
+					if (memsize > MAX_MEMORY_O3DS_DYN-1) {
+						E_Exit("Maximum Old 3DS memory for Dynrec core is %d MB", MAX_MEMORY_O3DS_DYN - 1);
+						memsize = MAX_MEMORY_O3DS_DYN-1;
+					}
+				} else {
+					if (memsize > MAX_MEMORY_O3DS_NOR-1) {
+						E_Exit("Maximum Old 3DS memory for Normal core is %d MB", MAX_MEMORY_O3DS_NOR - 1);
+						memsize = MAX_MEMORY_O3DS_NOR-1;
+					}
 				}
 			}
 
@@ -583,6 +594,11 @@ public:
 			if (memsize > MAX_MEMORY-1) {
 				LOG_MSG("Maximum memory size is %d MB",MAX_MEMORY - 1);
 				memsize = MAX_MEMORY-1;
+			}
+
+			if (memsize > SAFE_MEMORY-1) {
+					LOG_MSG("Memory sizes above %d MB are NOT recommended.",SAFE_MEMORY - 1);
+					LOG_MSG("Stick with the default values unless you are absolutely certain.");
 			}
 		}
 		#endif
