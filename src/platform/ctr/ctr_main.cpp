@@ -63,6 +63,12 @@
 #define SOC_ALIGN       0x1000
 #define SOC_BUFFERSIZE  0x100000
 
+#ifdef CTR_GFXEND_THREADED
+	LightLock mutex;
+	Thread thread;
+	volatile bool kill_thread;
+#endif
+
 static u32 *SOC_buffer = NULL;
 
 extern ctr_settings_t ctr_settings;
@@ -155,8 +161,10 @@ void GFX_ResetScreen(void) {
 }
 
 void GFX_TearDown(void) {
-	if (sdl.updating)
-		GFX_EndUpdate( 0 );
+	#ifndef CTR_GFXEND_THREADED
+		if (sdl.updating)
+			GFX_EndUpdate( 0 );
+	#endif
 
 	if (sdl.blit.surface) {
 		SDL_FreeSurface(sdl.blit.surface);
@@ -246,6 +254,45 @@ bool GFX_StartUpdate(Bit8u * & pixels,Bitu & pitch) {
 	return true;
 }
 
+void GFX_EndUpdate_Thread() {
+	const Bit16u *changedLines = 0;
+	if (!kill_thread)
+	{
+		if (!RENDER_GetForceUpdate() && !sdl.updating)
+			return;
+
+		sdl.updating=false;
+
+		if (SDL_MUSTLOCK(sdl.surface)) {
+			if (sdl.blit.surface) {
+				SDL_UnlockSurface(sdl.blit.surface);
+				int Blit = SDL_BlitSurface( sdl.blit.surface, 0, sdl.surface, &sdl.clip );
+				LOG(LOG_MISC,LOG_WARN)("BlitSurface returned %d",Blit);
+			} else {
+				SDL_UnlockSurface(sdl.surface);
+			}
+			SDL_Flip(sdl.surface);
+		} else if (changedLines) {
+			Bitu y = 0, index = 0, rectCount = 0;
+			while (y < sdl.draw.height) {
+				if (!(index & 1)) {
+					y += changedLines[index];
+				} else {
+					SDL_Rect *rect = &sdl.updateRects[rectCount++];
+					rect->x = sdl.clip.x;
+					rect->y = sdl.clip.y + y;
+					rect->w = (Bit16u)sdl.draw.width;
+					rect->h = changedLines[index];
+						y += changedLines[index];
+				}
+				index++;
+			}
+			if (rectCount)
+				SDL_UpdateRects( sdl.surface, rectCount, sdl.updateRects );
+		}
+	}
+}
+
 void GFX_EndUpdate( const Bit16u *changedLines ) {
 	if (!RENDER_GetForceUpdate() && !sdl.updating)
 		return;
@@ -282,6 +329,9 @@ void GFX_EndUpdate( const Bit16u *changedLines ) {
 }
 
 void GFX_SetPalette(Bitu start,Bitu count,GFX_PalEntry * entries) {
+	#ifdef CTR_GFXEND_THREADED
+		LightLock_Lock(&mutex);
+	#endif
 	/* I should probably not change the GFX_PalEntry :) */
 	if (sdl.surface->flags & SDL_HWPALETTE) {
 		if (!SDL_SetPalette(sdl.surface,SDL_PHYSPAL,(SDL_Color *)entries,start,count)) {
@@ -292,6 +342,9 @@ void GFX_SetPalette(Bitu start,Bitu count,GFX_PalEntry * entries) {
 			E_Exit("SDL:Can't set palette");
 		}
 	}
+	#ifdef CTR_GFXEND_THREADED
+		LightLock_Unlock(&mutex);
+	#endif
 }
 
 Bitu GFX_GetRGB(Bit8u red,Bit8u green,Bit8u blue) {
@@ -321,18 +374,33 @@ void GFX_ShowMsg(char const* format,...) {
 }
 
 void GFX_Stop() {
+	#ifdef CTR_GFXEND_THREADED
+		LightLock_Lock(&mutex);
+	#endif
 	if (sdl.updating)
 		GFX_EndUpdate( 0 );
 	sdl.active=false;
+	#ifdef CTR_GFXEND_THREADED
+		LightLock_Unlock(&mutex);
+	#endif
 }
 
 void GFX_Start() {
 	sdl.active=true;
+	#ifdef CTR_GFXEND_THREADED
+		LightLock_Init(&mutex);
+		kill_thread=false;
+		//I think Core 1 at 70% should be plenty even for New 3DS Stuff.
+		thread = threadCreate(GFX_EndUpdate_Thread, 0, 2 * 1024, 0x18, 1, true);
+	#endif
 }
 
 static void GUI_ShutDown(Section * /*sec*/) {
 	GFX_Stop();
 	if (sdl.draw.callback) (sdl.draw.callback)( GFX_CallBackStop );
+	#ifdef CTR_GFXEND_THREADED
+		kill_thread=true;
+	#endif
 }
 
 static void GUI_StartUp(Section * sec) {
