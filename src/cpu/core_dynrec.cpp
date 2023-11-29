@@ -56,7 +56,7 @@
 #include "lazyflags.h"
 #include "pic.h"
 
-#define CACHE_MAXSIZE	(4096<<1)
+#define CACHE_MAXSIZE	(4096*2)
 
 #define CACHE_PAGES		(512)
 
@@ -141,7 +141,7 @@ static struct {
 #define X86_64		0x02
 #define MIPSEL		0x03
 #define ARMV4LE		0x04
-#define ARMV6KLE	0x05
+#define ARMV6LE		0x05
 #define ARMV7LE		0x06
 #define ARMV8LE		0x07
 
@@ -151,7 +151,7 @@ static struct {
 #include "core_dynrec/risc_x86.h"
 #elif C_TARGETCPU == MIPSEL
 #include "core_dynrec/risc_mipsel32.h"
-#elif (C_TARGETCPU == ARMV4LE) || (C_TARGETCPU == ARMV6KLE) || (C_TARGETCPU == ARMV7LE)
+#elif (C_TARGETCPU == ARMV4LE) || (C_TARGETCPU == ARMV6LE) || (C_TARGETCPU == ARMV7LE)
 #include "core_dynrec/risc_armv4le.h"
 #elif C_TARGETCPU == ARMV8LE
 #include "core_dynrec/risc_armv8le.h"
@@ -330,6 +330,7 @@ Bits CPU_Core_Dynrec_Trap_Run(void) {
 }
 
 void CPU_Core_Dynrec_Init(void) {
+#ifdef __3DS__
 	bool isN3DS;
 	APT_CheckNew3DS(&isN3DS);
 	if (isN3DS)
@@ -340,6 +341,10 @@ void CPU_Core_Dynrec_Init(void) {
 		CACHE_TOTAL = (1024*1024*2);
 		CACHE_BLOCKS = (32*1024);
 	}
+#else
+		CACHE_TOTAL	= (1024*1024*8);
+		CACHE_BLOCKS = (128*1024);
+#endif
 }
 
 void CPU_Core_Dynrec_Cache_Init(bool enable_cache) {

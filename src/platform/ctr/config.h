@@ -25,7 +25,7 @@
 #define C_HEAVY_DEBUG 0
 
 /* The type of cpu this host has */
-#define C_TARGETCPU ARMV6KLE
+#define C_TARGETCPU ARMV6LE
 
 /* Define to 1 to use x86 dynamic cpu core */
 #define C_DYNAMIC_X86 0

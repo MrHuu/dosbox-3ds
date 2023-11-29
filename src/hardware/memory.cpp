@@ -28,13 +28,13 @@
 
 #ifdef __3DS__
 #include <3ds.h>
+#define MAX_MEMORY_O3DS_DYN	4
+#define MAX_MEMORY_O3DS_NOR	11
 #endif
 
 #define PAGES_IN_BLOCK	((1024*1024)/MEM_PAGE_SIZE)
 #define SAFE_MEMORY	32
 #define MAX_MEMORY	64
-#define MAX_MEMORY_O3DS_DYN	4
-#define MAX_MEMORY_O3DS_NOR	11
 #define MAX_PAGE_ENTRIES (MAX_MEMORY*1024*1024/4096)
 #define LFB_PAGES	512
 #define MAX_LINKS	((MAX_MEMORY*1024/4)+4096)		//Hopefully enough
@@ -425,7 +425,7 @@ bool MEM_A20_Enabled(void) {
 }
 
 void MEM_A20_Enable(bool enabled) {
-	Bitu phys_base=enabled ? (1024>>2) : 0;
+	Bitu phys_base=enabled ? (1024/4) : 0;
 	for (Bitu i=0;i<16;i++) PAGING_MapPage((1024>>2)+i,phys_base+i);
 	memory.a20.enabled=enabled;
 }
